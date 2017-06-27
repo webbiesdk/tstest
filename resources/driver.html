@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/qunit/1.18.0/qunit.css"/>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+    <h2>This is the TSTest page for running JavaScript in a browser. </h2>
+
+    <script>
+        (function () {
+            var print = console.log;
+
+            var concurrentCount = 0;
+            var sendClose = false;
+            var sequencer = 0;
+            var totalMessages = 0;
+            var queue = [];
+
+            function actuallySend(json) {
+                concurrentCount++;
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function () {
+                    if (this.readyState === 4) {
+                        concurrentCount--;
+                        if (sendClose && concurrentCount === 0) {
+                            actuallySend("close");
+                        }
+                    }
+                };
+                xhttp.open("POST", location.protocol + "//" + location.host + "/post", true);
+                xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+                xhttp.send(json);
+            }
+
+            var splitter = "$!$!$!TsTestMsgSplit!$!$!$";
+
+            var logarithm = (function () {
+                var log = Math.log;
+                return function (n, base) {
+                    return log(n) / (base ? log(base) : 1);
+                };
+            })();
+
+            Object.defineProperty(window, 'sendResultToChecker', {
+                enumerable: false,
+                configurable: false,
+                writable: false,
+                value: function send (json) {
+                    if (json === "close") {
+                        if (concurrentCount || queue.length) {
+                            if (queue.length) {
+                                actuallySend(queue.join(splitter));
+                                queue = [];
+                            }
+                            sendClose = true;
+                        } else {
+                            actuallySend("close");
+                        }
+                        return;
+                    }
+                    totalMessages++;
+
+                    var msg = sequencer++ + ':' + json;
+                    queue.push(msg);
+
+                    var maxConcurrent = logarithm(totalMessages + 1, 1.02);
+
+                    if (concurrentCount < maxConcurrent) {
+                        actuallySend(queue.join(splitter));
+                        queue = [];
+                    }
+
+                }
+            });
+
+            Object.defineProperty(window, 'createStartDumpButton', {
+                enumerable: false,
+                configurable: false,
+                writable: false,
+                value: function (callback) {
+                    var button = document.createElement("button");
+                    button.appendChild(document.createTextNode("Click me when the script is done"));
+                    button.style.padding = "20px";
+                    button.style.fontSize = "20px";
+                    button.addEventListener("click", function ()  {
+                        callback();
+                    });
+                    document.body.insertBefore(button,document.body.childNodes[0]);
+                }
+            });
+        })();
+    </script>
+    <script src="test.js"></script>
+
+    <div id="qunit"></div>
+</body>
+</html>

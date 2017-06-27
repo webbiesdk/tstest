@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/test/src" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/ts-spec-reader/deserializers/java/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/resources" type="java-resource" />
+      <excludeFolder url="file://$MODULE_DIR$/build" />
+      <excludeFolder url="file://$MODULE_DIR$/cache" />
+      <excludeFolder url="file://$MODULE_DIR$/paper" />
+      <excludeFolder url="file://$MODULE_DIR$/test/async/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/accounting/coverage" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/accounting/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/ace/coverage" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/ace/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/angular1/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/async/coverage" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/async/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/box2dweb/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/fixedMoment/coverage" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/fixedMoment/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/jquery/coverage" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/jquery/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/lunr/coverage" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/lunr/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/moment/coverage" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/moment/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/pathjs/coverage" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/pathjs/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/pixi/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/benchmarks/underscore/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/moment/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/pathjs/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/test/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/underscore/smallDrivers" />
+      <excludeFolder url="file://$MODULE_DIR$/test/unit" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="deserializers" />
+    <orderEntry type="library" name="selenium-server-standalone-3.3.1" level="project" />
+    <orderEntry type="library" name="closure-compiler-v20160713-1" level="project" />
+    <orderEntry type="library" name="json-20160810 (1)" level="project" />
+    <orderEntry type="library" name="gson-2.3.1" level="project" />
+    <orderEntry type="library" name="selenium-server-standalone-3.3.1" level="project" />
+  </component>
+</module>

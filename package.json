@@ -1,0 +1,21 @@
+{
+  "name": "tajscheck",
+  "version": "0.0.1",
+  "description": "A sound checker of TypeScript declaration files",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "JavaScript",
+    "TypeScript",
+    "Declaration",
+    "Check"
+  ],
+  "author": "Erik Krogh Kristensen",
+  "license": "ISC",
+  "dependencies": {
+    "istanbul": "^0.4.5",
+    "q": "^1.4.1",
+    "sync-request": "^4.0.1"
+  }
+}

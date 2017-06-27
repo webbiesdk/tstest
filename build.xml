@@ -1,0 +1,155 @@
+<project name="TAJSCheck" default="help" basedir=".">
+
+    <property name="source-directory" value="src"/>
+    <property name="test-source-directory" value="test/src/"/>
+
+    <property name="build-directory" value="build"/>
+
+    <path id="class-path">
+        <pathelement location="${build-directory}"/>
+        <pathelement location="lib/selenium/"/>
+        <pathelement location="lib/selenium/selenium-server-standalone-3.3.1.jar"/>
+        <fileset dir="." includes="lib/*.jar" />
+        <pathelement location="ts-spec-reader/deserializers/java/src"/>
+    </path>
+
+    <target name="help">
+        <echo><!-- TODO: Actually do something -->
+            TODO: Do something.
+        </echo>
+    </target>
+
+    <target name="clean">
+        <delete dir="${build-directory}"/>
+    </target>
+
+    <target name="prepare">
+        <mkdir dir="${build-directory}"/>
+    </target>
+
+    <target name="copy-source" depends="prepare">
+        <copy todir="${build-directory}" >
+            <fileset dir="${source-directory}" includes="**"/>
+        </copy>
+        <copy todir="${build-directory}">
+            <fileset dir="resources" includes="**" />
+        </copy>
+    </target>
+
+    <target name="build-src" depends="prepare, copy-source">
+        <javac
+               destdir="${build-directory}"
+               debug="on"
+               includeantruntime="no"
+        >
+            <src path="ts-spec-reader/deserializers/java/src" />
+            <src path="${source-directory}" />
+            <classpath refid="class-path"/>
+        </javac>
+    </target>
+
+    <target name="build-test" depends="build-src">
+        <javac
+               destdir="${build-directory}"
+               debug="on"
+               includeantruntime="no"
+        >
+            <src path="${test-source-directory}" />
+            <classpath refid="class-path"/>
+        </javac>
+    </target>
+
+    <target name="build-all" depends="build-src,build-test"/>
+
+    <!-- JUnit testing -->
+    <target name="test" depends="build-all">
+        <junit printsummary="on" haltonfailure="yes" fork="true" showoutput="true">
+            <classpath>
+                <path refid="class-path"/>
+                <pathelement location="${build-directory}"/>
+            </classpath>
+            <formatter type="plain" usefile="false" /> <!-- to screen -->
+            <formatter type="plain" /> <!-- to file -->
+            <batchtest>
+                <fileset dir="${test-source-directory}" includes="**/*TestSuite.java" />
+            </batchtest>
+        </junit>
+    </target>
+
+    <target name="unittest" depends="build-all">
+        <junit printsummary="on" haltonfailure="yes" fork="true" showoutput="true">
+            <classpath>
+                <path refid="class-path"/>
+                <pathelement location="${build-directory}"/>
+            </classpath>
+            <formatter type="plain" usefile="false" /> <!-- to screen -->
+            <formatter type="plain" /> <!-- to file -->
+            <batchtest>
+                <fileset dir="${test-source-directory}" includes="**/UnitTests.java" />
+            </batchtest>
+        </junit>
+    </target>
+
+    <target name="run" depends="build-all">
+        <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.RunSingle">
+            <arg value="${name}"/>
+            <classpath>
+                <path refid="class-path"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="run-all" depends="build-all">
+        <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.AutomaticExperiments">
+            <arg value="RUNALL"/>
+            <classpath>
+                <path refid="class-path"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="RQ1.1" depends="build-all">
+        <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.AutomaticExperiments">
+            <arg value="CountMismatches"/>
+            <classpath>
+                <path refid="class-path"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="RQ1.2" depends="build-all">
+        <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.AutomaticExperiments">
+            <arg value="CompareConfigurations"/>
+            <classpath>
+                <path refid="class-path"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="RQ1.3" depends="build-all">
+        <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.AutomaticExperiments">
+            <arg value="Coverage"/>
+            <classpath>
+                <path refid="class-path"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="run-trivial" depends="build-all">
+        <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.RunSingleTrivial">
+            <arg value="${name}"/>
+            <classpath>
+                <path refid="class-path"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="qualitative" depends="build-all">
+        <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.ManualExperiment">
+            <arg value="${name}"/>
+            <classpath>
+                <path refid="class-path"/>
+            </classpath>
+        </java>
+    </target>
+</project>
