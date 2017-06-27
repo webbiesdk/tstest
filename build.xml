@@ -92,6 +92,7 @@
 
     <target name="run" depends="build-all">
         <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.RunSingle">
+            <jvmarg line="-Xmx6G" />
             <arg value="${name}"/>
             <classpath>
                 <path refid="class-path"/>
@@ -101,6 +102,7 @@
 
     <target name="run-all" depends="build-all">
         <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.AutomaticExperiments">
+            <jvmarg line="-Xmx6G" />
             <arg value="RUNALL"/>
             <classpath>
                 <path refid="class-path"/>
@@ -110,6 +112,7 @@
 
     <target name="RQ1.1" depends="build-all">
         <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.AutomaticExperiments">
+            <jvmarg line="-Xmx6G" />
             <arg value="CountMismatches"/>
             <classpath>
                 <path refid="class-path"/>
@@ -119,6 +122,7 @@
 
     <target name="RQ1.2" depends="build-all">
         <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.AutomaticExperiments">
+            <jvmarg line="-Xmx6G" />
             <arg value="CompareConfigurations"/>
             <classpath>
                 <path refid="class-path"/>
@@ -128,6 +132,7 @@
 
     <target name="RQ1.3" depends="build-all">
         <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.AutomaticExperiments">
+            <jvmarg line="-Xmx6G" />
             <arg value="Coverage"/>
             <classpath>
                 <path refid="class-path"/>
@@ -137,6 +142,7 @@
 
     <target name="run-trivial" depends="build-all">
         <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.RunSingleTrivial">
+            <jvmarg line="-Xmx6G" />
             <arg value="${name}"/>
             <classpath>
                 <path refid="class-path"/>
@@ -146,6 +152,7 @@
 
     <target name="qualitative" depends="build-all">
         <java fork="yes" classname="dk.webbies.tajscheck.test.experiments.ManualExperiment">
+            <jvmarg line="-Xmx6G" />
             <arg value="${name}"/>
             <classpath>
                 <path refid="class-path"/>
