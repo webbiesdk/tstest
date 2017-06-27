@@ -200,7 +200,6 @@ public class RunBenchmarks {
     }
 
     @Test
-    @Ignore
     public void genFullDriver() throws Exception {
         Main.writeFullDriver(benchmark);
     }
