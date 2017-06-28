@@ -122,7 +122,7 @@ public class BenchmarkInfo {
 
 
         // Fixing if the top-level export is a class, sometimes we can an interface with a prototype property instead of the actual class.
-        for (Map.Entry<String, Type> entry : new HashMap<>(((InterfaceType) spec.getGlobal()).getDeclaredProperties()).entrySet()) {
+        for (Map.Entry<String, Type> entry : new HashMap<>(spec.getGlobal().getDeclaredProperties()).entrySet()) {
             if (nativeTypes.contains(entry.getValue())) {
                 continue;
             }
@@ -131,7 +131,7 @@ public class BenchmarkInfo {
                 if (inter.getDeclaredCallSignatures().size() + inter.getDeclaredConstructSignatures().size() > 0) {
                     Type result = inter.getDeclaredProperties().get("prototype");
                     if (inter.getDeclaredProperties().keySet().contains("prototype") && result instanceof ClassType) {
-                        ((InterfaceType) spec.getGlobal()).getDeclaredProperties().put(entry.getKey(), result);
+                        spec.getGlobal().getDeclaredProperties().put(entry.getKey(), result);
                     }
                 }
             }
@@ -141,6 +141,18 @@ public class BenchmarkInfo {
     private static void applyTypeFixes(Benchmark bench, Map<Type, String> typeNames, List<Type> typesToFix, FreeGenericsFinder freeGenericsFinder) {
         List<Type> allTypes = new ArrayList<>(TypesUtil.collectAllTypes(typesToFix));
         for (Type type : allTypes) {
+
+            // Generic signatures sometimes have their return-type in the target signature.
+            if (type instanceof InterfaceType) {
+                InterfaceType inter = (InterfaceType) type;
+                inter.getDeclaredCallSignatures().forEach(BenchmarkInfo::fixSignatureReturn);
+                inter.getDeclaredConstructSignatures().forEach(BenchmarkInfo::fixSignatureReturn);
+            } else if (type instanceof GenericType) {
+                GenericType inter = (GenericType) type;
+                inter.getDeclaredCallSignatures().forEach(BenchmarkInfo::fixSignatureReturn);
+                inter.getDeclaredConstructSignatures().forEach(BenchmarkInfo::fixSignatureReturn);
+            }
+
 
             // Splitting optional arguments in signature
             if (type instanceof InterfaceType) {
@@ -296,6 +308,19 @@ public class BenchmarkInfo {
                 }
             }
         }
+    }
+
+    public static void fixSignatureReturn(Signature signature) {
+        if (signature.getResolvedReturnType() != null) {
+            return;
+        }
+
+        if (signature.getTarget() == null) {
+            System.out.println();
+        }
+        assert signature.getTarget() != null;
+        assert signature.getTarget().getResolvedReturnType() != null;
+        signature.setResolvedReturnType(signature.getTarget().getResolvedReturnType());
     }
 
     private static List<Type> collectAllUnionElements(List<Type> elements, Set<UnionType> seenUnions) {

@@ -2,6 +2,7 @@ package dk.webbies.tajscheck.parsespec;
 
 import dk.au.cs.casa.typescript.SpecReader;
 import dk.au.cs.casa.typescript.types.*;
+import dk.webbies.tajscheck.benchmark.BenchmarkInfo;
 import dk.webbies.tajscheck.util.Util;
 
 import java.io.File;
@@ -92,6 +93,9 @@ public class ParseDeclaration {
         final Type type;
 
         private Arg(String path, int depth, Type type) {
+            if (type == null) {
+                throw new NullPointerException();
+            }
             this.path = path;
             this.depth = depth;
             this.type = type;
@@ -182,6 +186,8 @@ public class ParseDeclaration {
             for (Type baseType : t.getBaseTypes()) {
                 queue.add(arg.append("[base]", baseType));
             }
+
+            Util.concat(t.getDeclaredCallSignatures(), t.getDeclaredConstructSignatures()).forEach(BenchmarkInfo::fixSignatureReturn);
 
             for (Signature signature : Util.concat(t.getDeclaredCallSignatures(), t.getDeclaredConstructSignatures())) {
                 for (int i = 0; i < signature.getParameters().size(); i++) {

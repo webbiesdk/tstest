@@ -1,11 +1,16 @@
 package dk.webbies.tajscheck.test.dynamic;
 
 import dk.au.cs.casa.typescript.SpecReader;
+import dk.au.cs.casa.typescript.types.BooleanLiteral;
+import dk.au.cs.casa.typescript.types.InterfaceType;
+import dk.au.cs.casa.typescript.types.NumberLiteral;
+import dk.au.cs.casa.typescript.types.Type;
 import dk.webbies.tajscheck.CoverageResult;
 import dk.webbies.tajscheck.ExecutionRecording;
 import dk.webbies.tajscheck.Main;
 import dk.webbies.tajscheck.OutputParser;
 import dk.webbies.tajscheck.benchmark.Benchmark;
+import dk.webbies.tajscheck.benchmark.BenchmarkInfo;
 import dk.webbies.tajscheck.benchmark.CheckOptions;
 import dk.webbies.tajscheck.benchmark.TypeParameterIndexer;
 import dk.webbies.tajscheck.parsespec.ParseDeclaration;
@@ -540,6 +545,29 @@ public class UnitTests {
 
         assertThat(result.typeErrors, is(empty()));
         assertThat(result.errors, is(empty()));
+    }
+
+    @Test
+    public void numberLiteral() throws Exception {
+        SpecReader spec = BenchmarkInfo.create(benchFromFolder("numberLiteral")).getSpec();
+
+        NumberLiteral number = (NumberLiteral) spec.getGlobal().getDeclaredProperties().get("module");
+
+        assertThat(number.getValue(), is(equalTo(1337d)));
+    }
+
+
+    @Test
+    public void booleanLiteral() throws Exception {
+        SpecReader spec = BenchmarkInfo.create(benchFromFolder("booleanLiteral")).getSpec();
+
+        InterfaceType module = (InterfaceType) spec.getGlobal().getDeclaredProperties().get("module");
+
+        BooleanLiteral t = (BooleanLiteral) module.getDeclaredProperties().get("t");
+        BooleanLiteral f = (BooleanLiteral) module.getDeclaredProperties().get("f");
+
+        assertThat(t.getValue(), is(true));
+        assertThat(f.getValue(), is(false));
     }
 
     @Test
@@ -1429,8 +1457,8 @@ public class UnitTests {
     }
 
     @Test
-    public void basicExample() throws Exception {
-        RunResult result = run("basicExample", options().setCheckDepthReport(0).build());
+    public void basicExample1() throws Exception {
+        RunResult result = run("basicExample1", options().setCheckDepthReport(0).build());
 
         assertThat(result.typeErrors.size(), is(1));
 
@@ -1604,7 +1632,6 @@ public class UnitTests {
 
     @Test
     public void complexSanityCheck21() throws Exception {
-        // Jeg har en mistanke om at det skyldes min "kombiner generics med samme constraint" i BenchmarkInfo.
         sanityCheck(benchFromFolder("complexSanityCheck21"), NODE);
     }
 
@@ -1615,10 +1642,29 @@ public class UnitTests {
     }
 
     @Test
-    @Ignore // TODO: Likely an error in ts-spec-reader or the TypeScript compiler.
     public void complexGenerics3() throws Exception {
         RunResult result = run(benchFromFolder("complexGenerics3").withOptions(options -> options.setCombineAllUnboundGenerics(false)));
 
         assertThat(result.typeErrors, is(empty()));
+    }
+
+    @Test
+    public void genericSignaturesSmokeTest() throws Exception {
+        Main.generateFullDriver(benchFromFolder("genericSignaturesSmokeTest")); // smoke test
+    }
+
+    @Test
+    public void genericSignaturesError() throws Exception {
+        RunResult result = run("genericSignaturesError");
+
+        expect(result)
+                .forPath("MyModule.createElement()(typeParameter)")
+                .expected("string")
+                .got(TYPEOF, "number");
+    }
+
+    @Test
+    public void genericSignaturesSmokeTest2() throws Exception {
+        Main.generateFullDriver(benchFromFolder("genericSignaturesSmokeTest2"));
     }
 }

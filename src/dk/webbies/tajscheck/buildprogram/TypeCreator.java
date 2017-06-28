@@ -484,11 +484,6 @@ public class TypeCreator {
         @Override
         public Statement visit(TypeParameterType type, TypeContext typeContext) {
             if (typeContext.containsKey(type)) {
-                List<Type> recursiveGenerics = TypesUtil.findRecursiveDefinition(type, typeContext, info.typeParameterIndexer);
-                if (!recursiveGenerics.isEmpty()) {
-                    return Return(constructType(OptimizingTypeContext.ANY, TypeContext.create(info)));
-                }
-
                 TypeWithContext lookup = typeContext.get(type);
                 return Return(constructType(lookup.getType(), lookup.getTypeContext()));
             }

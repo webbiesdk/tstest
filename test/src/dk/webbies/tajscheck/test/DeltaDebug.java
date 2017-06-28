@@ -194,6 +194,7 @@ public class DeltaDebug {
                 return false;
             }
         });
+        System.exit(0);
     }
 
     private static boolean testHasSomeError(Benchmark bench) throws Exception {

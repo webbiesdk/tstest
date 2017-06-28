@@ -118,7 +118,6 @@ public class OutputParser {
                 int testCalled = Integer.parseInt(Util.removePrefix(line, "Test called: ").trim());
                 testsCalled.add(testCalled);
             } else if (line.startsWith("total number of tests: ")) {
-                assert totalTests == -1;
                 totalTests = Integer.parseInt(Util.removePrefix(line, "total number of tests: ").trim());
             } else {
                 if (!line.startsWith(" ")) {
@@ -142,9 +141,7 @@ public class OutputParser {
 
     private static TypeError parseSingleResult(List<String> lines, Set<Integer> testsCalled, boolean collectCalledTests, String filterPath) {
         if (!(lines.size() == 6 || lines.size() == 5)) {
-            System.out.println("Lines: ");
-            lines.forEach(System.out::println);
-            return null;
+            System.out.println();
         }
         assert lines.size() == 6 || lines.size() == 5;
 

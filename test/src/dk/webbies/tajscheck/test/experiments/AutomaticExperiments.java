@@ -379,7 +379,6 @@ public class AutomaticExperiments {
     });
 
     public static void main(String[] args) throws Exception {
-        args = new String[]{"RUNALL"};
         if (args.length > 0) {
             String experimentToRun = args[0];
 
@@ -492,10 +491,8 @@ public class AutomaticExperiments {
 
         experiment.addSingleExperiment(type);
 
-        experiment.addMultiExperiment(uniquePaths);
-
-//        experiment.addMultiExperiment(uniquePathsWithOptions("(standard)", 1, false, Function.identity()));
-//        experiment.addMultiExperiment(uniquePathsWithOptions("(construct classes)", 1, false, options -> options.setConstructClassInstances(true).setConstructClassTypes(true)));
+        experiment.addMultiExperiment(uniquePathsWithOptions("(standard)", 1, false, Function.identity()));
+        experiment.addMultiExperiment(uniquePathsWithOptions("(construct classes)", 1, false, options -> options.setConstructClassInstances(true).setConstructClassTypes(true)));
 
 //        experiment.addMultiExperiment(uniquePaths);
 //        experiment.addMultiExperiment(uniquePathsAnd5Coverage);

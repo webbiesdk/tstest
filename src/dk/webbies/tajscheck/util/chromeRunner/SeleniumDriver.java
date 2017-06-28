@@ -33,9 +33,23 @@ public class SeleniumDriver {
 
         ChromeDriver driver = new ChromeDriver(buldCapabilities());
 
-        driver.manage().timeouts().pageLoadTimeout(pageLoadTimeout, TimeUnit.SECONDS);
-        driver.manage().timeouts().implicitlyWait(pageLoadTimeout, TimeUnit.SECONDS);
-        driver.manage().timeouts().setScriptTimeout(pageLoadTimeout, TimeUnit.SECONDS);
+        try {
+            driver.manage().timeouts().pageLoadTimeout(pageLoadTimeout, TimeUnit.SECONDS);
+            driver.manage().timeouts().implicitlyWait(pageLoadTimeout, TimeUnit.SECONDS);
+            driver.manage().timeouts().setScriptTimeout(pageLoadTimeout, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            System.err.println("Had some error while setting timeouts");
+            //noinspection finally
+            try {
+                Thread.sleep(100);
+                driver.quit();
+            } catch (InterruptedException e1) {
+                e1.printStackTrace();
+            } finally {
+                //noinspection ReturnInsideFinallyBlock
+                return executeScript(dir, script, timeout, pageLoadTimeout);
+            }
+        }
 
         ServerSocket socket = new ServerSocket(0);
 
