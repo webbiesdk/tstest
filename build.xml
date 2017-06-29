@@ -14,8 +14,8 @@
     </path>
 
     <target name="help">
-        <echo><!-- TODO: Actually do something -->
-            TODO: Do something.
+        <echo>
+            See README.md
         </echo>
     </target>
 
