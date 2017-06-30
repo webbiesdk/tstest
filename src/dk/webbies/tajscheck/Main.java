@@ -76,7 +76,7 @@ public class Main {
     }
 
     public static String generateSmallestDriver(Benchmark bench, Function<String, Collection<Integer>> test) throws IOException {
-        int THREADS = 2;
+        int THREADS = 1;
         BenchmarkInfo info = BenchmarkInfo.create(bench);
 
         List<Test> tests = new TestCreator(info).createTests();
