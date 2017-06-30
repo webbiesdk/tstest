@@ -43,7 +43,7 @@ public class Experiment {
     }
 
     public Experiment() {
-        this(RunBenchmarks.benchmarks);
+        this(RunBenchmarks.benchmarks.entrySet().stream().filter(bench -> !bench.getKey().contains("motivating")).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
     public Experiment(Map<String, Benchmark> benchmarks) {
