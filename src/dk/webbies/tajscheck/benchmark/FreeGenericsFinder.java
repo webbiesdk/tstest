@@ -15,8 +15,10 @@ import java.util.stream.Collectors;
  */
 public class FreeGenericsFinder {
     private final Set<Type> hasThisTypes;
+    private BenchmarkInfo info;
 
-    public FreeGenericsFinder(Type global) {
+    public FreeGenericsFinder(Type global, BenchmarkInfo info) {
+        this.info = info;
         this.hasThisTypes = findHasThisTypes(global);
     }
 
@@ -28,8 +30,8 @@ public class FreeGenericsFinder {
         this.hasThisTypes.add(type);
     }
 
-    private static Set<Type> findHasThisTypes(Type global) {
-        Set<Type> allTypes = TypesUtil.collectAllTypes(global);
+    private Set<Type> findHasThisTypes(Type global) {
+        Set<Type> allTypes = TypesUtil.collectAllTypes(global, info);
 
         MultiMap<Type, Type> reverseBaseTypeMap = new ArrayListMultiMap<>();
 
@@ -50,7 +52,7 @@ public class FreeGenericsFinder {
             } else if (type instanceof ReferenceType) {
                 reverseBaseTypeMap.put(((ReferenceType) type).getTarget(), type);
             } else if (type instanceof ClassInstanceType) {
-                InterfaceType instanceType = ((ClassType) ((ClassInstanceType) type).getClassType()).getInstanceType();
+                Type instanceType = info.typesUtil.createClassInstanceType(((ClassType) ((ClassInstanceType) type).getClassType()));
                 reverseBaseTypeMap.put(instanceType, type);
             }
         }
@@ -71,7 +73,7 @@ public class FreeGenericsFinder {
                 } else if (type instanceof ReferenceType) {
                     addQueue.add(((ReferenceType) type).getTarget());
                 } else if (type instanceof ClassType) {
-                    addQueue.add(((ClassType) type).getInstanceType());
+                    addQueue.add(info.typesUtil.createClassInstanceType(((ClassType) type)));
                 } else if (type instanceof GenericType) {
                     addQueue.add(((GenericType) type).toInterface());
                 }
@@ -97,7 +99,7 @@ public class FreeGenericsFinder {
         }
     }
 
-    private static final class FindReachableTypeParameters implements TypeVisitorWithArgument<Void, Set<TypeParameterType>> {
+    private final class FindReachableTypeParameters implements TypeVisitorWithArgument<Void, Set<TypeParameterType>> {
         final Set<Type> seen = new HashSet<>();
         private Type baseType;
         private MultiMap<Type, TypeParameterType> result;
@@ -120,7 +122,7 @@ public class FreeGenericsFinder {
             seen.add(t);
             if (addExisting(t, mapped)) return null;
 
-            t.getInstanceType().accept(this, mapped);
+            info.typesUtil.createClassInstanceType(t).accept(this, mapped);
 
             for (Signature signature : t.getSignatures()) {
                 assert signature.getResolvedReturnType() == null;
@@ -202,6 +204,8 @@ public class FreeGenericsFinder {
                 return null;
             }
             seen.add(t);
+
+            t.getTypeArguments().forEach(arg -> arg.accept(this, orgMapped));
 
             Set<TypeParameterType> mapped = Util.concatSet(orgMapped, Util.cast(TypeParameterType.class, TypesUtil.getTypeParameters(t.getTarget())));
 
@@ -297,7 +301,7 @@ public class FreeGenericsFinder {
 
         @Override
         public Void visit(ClassInstanceType t, Set<TypeParameterType> mapped) {
-            ((ClassType)t.getClassType()).getInstanceType().accept(this, mapped);
+            info.typesUtil.createClassInstanceType(((ClassType)t.getClassType())).accept(this, mapped);
 
             return null;
         }
@@ -354,7 +358,7 @@ public class FreeGenericsFinder {
         }
         Set<Type> seen = Util.concatSet(orgSeen, Collections.singletonList(baseType));
 
-        if (baseType instanceof ReferenceType) {
+        while (baseType instanceof ReferenceType) {
             if (((ReferenceType) baseType).getTypeArguments().stream().anyMatch(arg -> isThisTypeVisible(arg, deep, thisType, seen))) {
                 return true;
             }
@@ -367,7 +371,7 @@ public class FreeGenericsFinder {
             baseType = ((GenericType) baseType).toInterface();
         }
         if (baseType instanceof ClassInstanceType) {
-            baseType = ((ClassType) ((ClassInstanceType) baseType).getClassType()).getInstanceType();
+            baseType = info.typesUtil.createClassInstanceType(((ClassType) ((ClassInstanceType) baseType).getClassType()));
         }
         if (baseType instanceof InterfaceType) {
             InterfaceType inter = (InterfaceType) baseType;
@@ -397,8 +401,8 @@ public class FreeGenericsFinder {
         }
 
         if (baseType instanceof ThisType) {
-            Type constraint = TypesUtil.normalize(((ThisType) baseType).getConstraint());
-            return TypesUtil.getAllBaseTypes(thisType).stream().anyMatch(base -> constraint.equals(TypesUtil.normalize(base)));
+            Type constraint = info.typesUtil.normalize(((ThisType) baseType).getConstraint());
+            return info.typesUtil.getAllBaseTypes(thisType).stream().anyMatch(base -> constraint.equals(info.typesUtil.normalize(base)));
         }
         if (baseType instanceof UnionType) {
             return ((UnionType) baseType).getElements().stream().anyMatch(element -> isThisTypeVisible(element, deep, thisType, seen));

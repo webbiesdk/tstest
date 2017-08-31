@@ -4,7 +4,7 @@ import dk.au.cs.casa.typescript.types.Type;
 import dk.webbies.tajscheck.Main;
 import dk.webbies.tajscheck.OutputParser;
 import dk.webbies.tajscheck.benchmark.Benchmark;
-import dk.webbies.tajscheck.benchmark.CheckOptions;
+import dk.webbies.tajscheck.benchmark.options.CheckOptions;
 import dk.webbies.tajscheck.test.dynamic.RunBenchmarks;
 import dk.webbies.tajscheck.util.MultiMap;
 import dk.webbies.tajscheck.util.Pair;

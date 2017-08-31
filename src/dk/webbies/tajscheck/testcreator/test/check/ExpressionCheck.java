@@ -41,7 +41,7 @@ public class ExpressionCheck implements Check {
     private String representative = null;
     private String genRepresentative() {
         if (representative == null) {
-            return representative = AstToStringVisitor.toString(generator.apply(AstBuilder.identifier("foo")));
+            return representative = AstToStringVisitor.toString(generator.apply(AstBuilder.identifier("foo")), false);
         } else {
             return representative;
         }

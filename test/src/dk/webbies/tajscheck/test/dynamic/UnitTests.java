@@ -4,14 +4,13 @@ import dk.au.cs.casa.typescript.SpecReader;
 import dk.au.cs.casa.typescript.types.BooleanLiteral;
 import dk.au.cs.casa.typescript.types.InterfaceType;
 import dk.au.cs.casa.typescript.types.NumberLiteral;
-import dk.au.cs.casa.typescript.types.Type;
 import dk.webbies.tajscheck.CoverageResult;
 import dk.webbies.tajscheck.ExecutionRecording;
 import dk.webbies.tajscheck.Main;
 import dk.webbies.tajscheck.OutputParser;
 import dk.webbies.tajscheck.benchmark.Benchmark;
 import dk.webbies.tajscheck.benchmark.BenchmarkInfo;
-import dk.webbies.tajscheck.benchmark.CheckOptions;
+import dk.webbies.tajscheck.benchmark.options.CheckOptions;
 import dk.webbies.tajscheck.benchmark.TypeParameterIndexer;
 import dk.webbies.tajscheck.parsespec.ParseDeclaration;
 import dk.webbies.tajscheck.util.Util;
@@ -41,8 +40,6 @@ import static org.hamcrest.Matchers.*;
 public class UnitTests {
     private SpecReader parseDeclaration(String folderName) {
         Benchmark bench = benchFromFolder(folderName);
-
-        // Only testing that i can parse it, without getting exceptions
         return ParseDeclaration.getTypeSpecification(bench.environment, Collections.singletonList(bench.dTSFile));
     }
 
@@ -80,12 +77,14 @@ public class UnitTests {
 
     private String runDriver(Benchmark bench, String seed, boolean skipConsistencyCheck) throws Exception {
         if (!skipConsistencyCheck) {
-            sanityCheck(bench);
+//            sanityCheck(bench);
         }
 
         Main.writeFullDriver(bench, new ExecutionRecording(null, seed));
 
-        return Main.runBenchmark(bench);
+        String out = Main.runBenchmark(bench);
+        System.out.println(out);
+        return out;
     }
 
     private static void sanityCheck(Benchmark bench) throws Exception {
@@ -133,13 +132,21 @@ public class UnitTests {
         ParseResultTester forPath(List<Matcher<String>> paths) {
             results = results.stream().filter(candidate -> paths.stream().anyMatch(matcher -> matcher.matches(candidate.path))).collect(Collectors.toList());
 
-            assertThat("expected something on path: " + paths, results.size(),is(not(equalTo(0))));
-
             return this;
         }
 
         private ParseResultTester got(ExpectType type, String str) {
             return got(type, is(str));
+        }
+
+        private ParseResultTester toPass() {
+            assertThat(results, is(empty()));
+            return this;
+        }
+
+        private ParseResultTester toFail() {
+            assertThat(results, is(not(empty())));
+            return this;
         }
 
         private ParseResultTester got(ExpectType type, Matcher<String> matcher) {
@@ -243,8 +250,6 @@ public class UnitTests {
 
         assertThat(result.typeErrors, is(empty()));
     }
-
-    // TODO: Some test that a rest-recording can actually play. (One recording finds an error, another recording doesn't, same declaration file and implementation).
 
     @Test
     public void simpleFunctionArg() throws Exception {
@@ -380,8 +385,41 @@ public class UnitTests {
                 .got(STRING, "fooBar");
     }
 
+    @Test
+    public void constructClassInstances() throws Exception {
+        RunResult noConstruct = run("constructClassInstances");
+
+        expect(noConstruct)
+                .forPath("module.foo(classInstance)")
+                .toPass();
+
+        RunResult doConstruct = run("constructClassInstances", options().setConstructClassInstances(true).build());
+
+        expect(doConstruct)
+                .forPath("module.foo(classInstance)")
+                .toFail();
+    }
+
+    @Test
+    public void constructOnlyPrimitives() throws Exception {
+        RunResult noConstruct = run("constructOnlyPrimitives");
+
+        expect(noConstruct)
+                .toFail();
+
+        RunResult doConstruct = run("constructOnlyPrimitives", options().setConstructOnlyPrimitives(true).build());
+
+        expect(doConstruct)
+                .toPass();
+    }
+
     private static CheckOptions.Builder options() {
         return CheckOptions.builder().setMaxIterationsToRun(10000);
+    }
+
+    @Test
+    public void testOptions() throws Exception {
+        options().build().getBuilder();
     }
 
     @Test
@@ -390,7 +428,7 @@ public class UnitTests {
 
         expect(result)
                 .forPath("module.foo()")
-                .expected("(arrayIndex: number)")
+                .expected("(arrayIndex: (number or undefined))")
                 .got(JSON, "[1,2,3,\"4\"]");
     }
 
@@ -432,12 +470,12 @@ public class UnitTests {
 
         expect(result)
                 .forPath("module.foo().[numberIndexer]")
-                .expected("number")
+                .expected("(number or undefined)")
                 .got(TYPEOF, "string");
 
         expect(result)
                 .forPath("module.foo()")
-                .expected("(numberIndexer: number)")
+                .expected("(numberIndexer: (number or undefined))")
                 .got(JSON, "{\"1\":1,\"3\":4,\"7\":1,\"10\":\"blah\"}");
     }
 
@@ -454,7 +492,7 @@ public class UnitTests {
 
         expect(result)
                 .forPath("module.foo()")
-                .expected("(numberIndexer: number)")
+                .expected("(numberIndexer: (number or undefined))")
                 .got(JSON, "{\"1\":1,\"3\":4,\"7\":1,\"10\":\"blah\"}");
     }
 
@@ -466,7 +504,7 @@ public class UnitTests {
 
         expect(result)
                 .forPath("module.foo().[stringIndexer]")
-                .expected("number")
+                .expected("(number or undefined)")
                 .got(TYPEOF, "string");
     }
 
@@ -476,7 +514,7 @@ public class UnitTests {
 
         expect(result)
                 .forPath("module.foo().[numberIndexer]")
-                .expected("number")
+                .expected("(number or undefined)")
                 .got(TYPEOF, "string");
     }
 
@@ -486,7 +524,7 @@ public class UnitTests {
 
         expect(result)
                 .forPath("module.foo().[stringIndexer]")
-                .expected("number")
+                .expected("(number or undefined)")
                 .got(TYPEOF, "string");
     }
 
@@ -597,7 +635,7 @@ public class UnitTests {
         RunResult result = run("typeInArray");
 
         expect(result)
-                .forPath("module.foo().<>.[numberIndexer].bar.baz")
+                .forPath("module.foo().<>.[numberIndexer].[union0].bar.baz")
                 .expected("true")
                 .got(STRING, "false");
     }
@@ -757,7 +795,7 @@ public class UnitTests {
         sanityCheck(benchFromFolder("complexSanityCheck22"), BROWSER);
     }
 
-    @Test(expected = AssertionError.class) // TODO: make this not fail?
+    @Test(expected = AssertionError.class)
     public void complexSanityCheck23() throws Exception {
         sanityCheck(benchFromFolder("complexSanityCheck23"), NODE);
     }
@@ -983,13 +1021,13 @@ public class UnitTests {
 
     @Test
     public void extendsArray3() throws Exception {
-        RunResult result = run("extendsArray3");
+        RunResult result = run("extendsArray3", options().setCheckDepthReport(0).setCheckDepthReport(0).build());
 
-        assertThat(result.typeErrors.size(), is(equalTo(3)));
+        assertThat(result.typeErrors.size(), is(equalTo(1)));
 
         expect(result)
-                .forPath("module.bar().<>.[numberIndexer].<>.[numberIndexer]")
-                .expected("string")
+                .forPath("module.bar().<>.[numberIndexer].[union0].<>.[numberIndexer]")
+                .expected("(string or undefined)")
                 .got(TYPEOF, "number");
     }
 
@@ -1284,22 +1322,14 @@ public class UnitTests {
     }
 
     @Test
-    public void canWriteComplex() throws Exception {
-        RunResult resultNoWrite = run("canWriteComplex");
+    public void canWriteComplex2() throws Exception {
+        RunResult resultDoWrite = run("canWriteComplex", options().setCheckDepthUseValue(2).setCheckDepthReport(2).setWriteAll(true).build());
 
-        assertThat(resultNoWrite.typeErrors, is(empty()));
+        assertThat(resultDoWrite.getTestsCalled(), is(hasSize(resultDoWrite.getTotalTests())));
 
-        boolean hadAnError = false;
-        for (int i = 0; i < 20; i++) {
-            System.out.println("Trying with seed: " + i);
-            RunResult resultWithWrite = run("canWriteComplex", options().setWriteAll(true).build(), i + "");
+        RunResult resultDontWrite = run("canWriteComplex", options().setCheckDepthUseValue(2).setCheckDepthReport(2).setWriteAll(false).build());
 
-            if (resultWithWrite.typeErrors.size() > 0) {
-                hadAnError = true;
-                break;
-            }
-        }
-        assertThat(hadAnError, is(true));
+        assertThat(resultDontWrite.getTestsCalled(), is(not(hasSize(resultDontWrite.getTotalTests()))));
     }
 
     @Test
@@ -1666,5 +1696,22 @@ public class UnitTests {
     @Test
     public void genericSignaturesSmokeTest2() throws Exception {
         Main.generateFullDriver(benchFromFolder("genericSignaturesSmokeTest2"));
+    }
+
+    @Test
+    public void classInheritsConstructors() throws Exception {
+        RunResult result = run("classInheritsConstructors", options().setConstructAllTypes(true).build());
+
+        assertThat(result.typeErrors, is(hasSize(2)));
+
+        expect(result)
+                .forPath("module.Baz.[arg0]")
+                .expected("string")
+                .got(STRING, "123");
+
+        expect(result)
+                .forPath("module.Bar.[arg0]")
+                .expected("number")
+                .got(STRING, "undefined");
     }
 }

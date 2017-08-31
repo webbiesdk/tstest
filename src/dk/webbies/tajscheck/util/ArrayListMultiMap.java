@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
  * Created by erik1 on 19-10-2016.
  */
 public class ArrayListMultiMap<K, T> implements MultiMap<K, T> {
-    private Map<K, List<T>> map = new LinkedHashMap<>();
+    private Map<K, List<T>> map = new HashMap<>();
 
     @Override
     public void put(K key, T value) {

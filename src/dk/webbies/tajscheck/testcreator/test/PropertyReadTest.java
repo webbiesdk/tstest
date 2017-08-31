@@ -49,8 +49,4 @@ public class PropertyReadTest extends Test {
         return visitor.visit(this);
     }
 
-    @Override
-    public String toString() {
-        return this.getClass().getSimpleName()+"(" + baseType + "." + key + ")";
-    }
 }

@@ -26,10 +26,6 @@ public class CountUniques {
     public static MultiMap<Pair<Type, String>, OutputParser.TypeError> groupWarnings(Collection<OutputParser.TypeError> errors, Benchmark benchmark) {
         BenchmarkInfo info = BenchmarkInfo.create(benchmark.withOptions(options -> options.setDisableGenerics(false)));
 
-        return groupWarnings(errors, info);
-    }
-
-    public static MultiMap<Pair<Type, String>, OutputParser.TypeError> groupWarnings(Collection<OutputParser.TypeError> errors, BenchmarkInfo info) {
         MultiMap<Pair<Type, String>, OutputParser.TypeError> seenWarnings = new ArrayListMultiMap<>();
 
         errors.forEach(te -> {
@@ -48,7 +44,7 @@ public class CountUniques {
 
     private static String removeArguments(String path) {
         int index = 0;
-        while ((index = path.indexOf("(", index + 1)) != -1) {
+        while (((index = path.indexOf("(", index + 1)) != -1) && path.indexOf(")", index + 1) != -1) {
             try {
                 path = path.substring(0, index) + "()" + path.substring(path.indexOf(")", index + 1) + 1, path.length());
             } catch (StringIndexOutOfBoundsException e) {
@@ -170,7 +166,7 @@ public class CountUniques {
         @Override
         public Type visit(ClassType t, Arg arg) {
             if (info.freeGenericsFinder.hasThisTypes(t)) {
-                arg = arg.withContext(arg.context.withThisType(t.getInstanceType()));
+                arg = arg.withContext(arg.context.withThisType(info.typesUtil.createClassInstanceType(t)));
             }
             if (firstPath(arg.path).equals("new()")) {
                 return recurse(t.getInstance(), arg.rest());
@@ -201,7 +197,7 @@ public class CountUniques {
 
             }
             if (firstPath(arg.path).contains("(") || firstPath(arg.path).contains("[") || firstPath(arg.path).contains("<")) {
-                throw new RuntimeException();
+                return null;
             }
             Type result = recurse(t.getStaticProperties().get(firstPath(arg.path)), arg.rest());
             if (result != null) {
@@ -285,7 +281,7 @@ public class CountUniques {
                 return null;
             }
             if (firstPath(arg.path).contains("(") || firstPath(arg.path).contains("<") || firstPath(arg.path).contains("[")) {
-                throw new RuntimeException();
+                return null;
             }
             return recurse(t.getDeclaredProperties().get(firstPath(arg.path)), arg.rest());
         }
@@ -308,7 +304,7 @@ public class CountUniques {
 
         @Override
         public Type visit(ReferenceType t, Arg arg) {
-            return recurse(t.getTarget(), arg.withContext(new TypesUtil(info).generateParameterMap(t, arg.context)));
+            return recurse(t.getTarget(), arg.withContext(info.typesUtil.generateParameterMap(t, arg.context)));
         }
 
         @Override
@@ -395,7 +391,7 @@ public class CountUniques {
 
         @Override
         public Type visit(ClassInstanceType t, Arg arg) {
-            return recurse(((ClassType) t.getClassType()).getInstanceType(), arg);
+            return recurse(info.typesUtil.createClassInstanceType(((ClassType) t.getClassType())), arg);
         }
 
         @Override

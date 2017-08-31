@@ -71,7 +71,9 @@
             <formatter type="plain" usefile="false" /> <!-- to screen -->
             <formatter type="plain" /> <!-- to file -->
             <batchtest>
-                <fileset dir="${test-source-directory}" includes="**/*TestSuite.java" />
+                <fileset dir="${test-source-directory}" includes="**/UnitTests.java" />
+                <fileset dir="${test-source-directory}" includes="**/TestParsing.java" />
+                <fileset dir="${test-source-directory}" includes="**/TestVarious.java" />
             </batchtest>
         </junit>
     </target>

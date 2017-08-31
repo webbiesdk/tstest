@@ -17,7 +17,7 @@ public abstract class FunctionTest extends Test {
     private boolean restArgs;
 
     public FunctionTest(Collection<Type> typeToTest, List<Type> parameters, Type returnType, String path, TypeContext typeContext, List<Signature> precedingSignatures, boolean restArgs) {
-        super(typeToTest, parameters, returnType, path + PrettyTypes.parametersTypes(parameters), typeContext);
+        super(typeToTest, parameters, returnType, path + PrettyTypes.parametersTypes(parameters, restArgs), typeContext);
         this.parameters = parameters;
         this.precedingSignatures = precedingSignatures;
         this.restArgs = restArgs;

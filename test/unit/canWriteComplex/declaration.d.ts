@@ -1,7 +1,6 @@
-interface Foo {
-    value: number[];
+interface Bar {
+    value: true;
 }
 declare module module {
-    function gen(): Foo;
-    function test(a: Foo): true;
+    function gen(): Bar; // always returns something incorrect, therefore all tests only run if this method ever gets overwritten.
 }

@@ -3,7 +3,7 @@ package dk.webbies.tajscheck.test;
 import dk.webbies.tajscheck.Main;
 import dk.webbies.tajscheck.OutputParser;
 import dk.webbies.tajscheck.benchmark.Benchmark;
-import dk.webbies.tajscheck.benchmark.CheckOptions;
+import dk.webbies.tajscheck.benchmark.options.CheckOptions;
 import dk.webbies.tajscheck.test.dynamic.RunBenchmarks;
 import dk.webbies.tajscheck.util.Util;
 
@@ -13,9 +13,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.Optional;
-import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -24,11 +21,11 @@ import java.util.stream.Collectors;
  */
 public class DeltaTest {
     public static void main(String[] args) throws IOException {
-        Benchmark bench = RunBenchmarks.benchmarks.get("Underscore.js");
+        Benchmark bench = RunBenchmarks.benchmarks.get("jQuery");
 //        Benchmark bench = RunBenchmarks.benchmarks.get("async");
 //        Benchmark bench = RunBenchmarks.benchmarks.get("RxJS");
-        bench = bench.withOptions(options -> options.setWriteAll(true)).withOptions(CheckOptions::errorFindingOptions).withOptions(options -> options.setMaxTime(1 * 1000));
-        String testPath = "_().<>.chain().<>.sortBy";
+        bench = bench.withOptions(options -> options.setWriteAll(true)).withOptions(CheckOptions::errorFindingOptions).withOptions(options -> options.setMaxTime(10 * 1000));
+        String testPath = "jQuery().clone";
 //        String expected = "(undefined or (a non null value and Array and (arrayIndex: (null or ([any] and a non null value and a generic type marker (._isUnboundGeneric))))))";
 
         String driver = Util.readFile(Main.getFolderPath(bench) + Main.TEST_FILE_NAME);

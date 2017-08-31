@@ -17,9 +17,9 @@ public abstract class AstNode {
     public String toString() {
         if (location == null) {
             if (this instanceof Expression) {
-                return AstToStringVisitor.toString((Expression)this);
+                return AstToStringVisitor.toString((Expression)this, false);
             } else {
-                return AstToStringVisitor.toString((Statement)this);
+                return AstToStringVisitor.toString((Statement)this, false);
             }
         }
         SourcePosition start = this.location.start;

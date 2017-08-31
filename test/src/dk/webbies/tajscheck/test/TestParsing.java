@@ -1,5 +1,6 @@
 package dk.webbies.tajscheck.test;
 
+import dk.webbies.tajscheck.benchmark.Benchmark;
 import dk.webbies.tajscheck.parsespec.ParseDeclaration;
 import dk.webbies.tajscheck.paser.AST.Statement;
 import dk.webbies.tajscheck.paser.AstToStringVisitor;
@@ -7,8 +8,13 @@ import dk.webbies.tajscheck.paser.JavaScriptParser;
 import dk.webbies.tajscheck.util.Util;
 import org.hamcrest.core.Is;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -19,7 +25,17 @@ import static org.hamcrest.core.IsNot.not;
 /**
  * Created by erik1 on 03-01-2017.
  */
+@RunWith(Parameterized.class)
 public class TestParsing {
+
+    @Parameterized.Parameter
+    public boolean compact;
+
+    @Parameterized.Parameters(name = "{0}")
+    public static List<Boolean> getBenchmarks() {
+        return Arrays.asList(true, false);
+    }
+
     @Test
     public void testEscapedQuotes() throws Exception {
         testParse(
@@ -29,7 +45,7 @@ public class TestParsing {
                 "                    // \"Attribute values must be CSS identifiers [capture 5] or strings [capture 3 or capture 4]\"\n" +
                 "                    \"*(?:'((?:\\\\\\\\.|[^\\\\\\\\'])*)'|\\\"((?:\\\\\\\\.|[^\\\\\\\\\\\"])*)\\\"|(\" + identifier + \"))|)\" + whitespace +\n" +
                 "                    \"*\\\\]\""
-        );
+                , compact);
 
     }
 
@@ -40,7 +56,7 @@ public class TestParsing {
                 "\n" +
                 "\n" +
                 "})());"
-        );
+                , compact);
     }
 
     @Test
@@ -61,7 +77,7 @@ public class TestParsing {
                         "\t\t},\n" +
                         "\t}\n" +
                         "})));"
-        );
+                , compact);
     }
 
     @Test
@@ -72,7 +88,7 @@ public class TestParsing {
 
         System.out.println("First parsing complete");
 
-        String iteration1String = AstToStringVisitor.toString(iteration1Ast);
+        String iteration1String = AstToStringVisitor.toString(iteration1Ast, compact);
 
         assertThat(iteration1String, not(containsString("null")));
     }
@@ -85,7 +101,7 @@ public class TestParsing {
 
         System.out.println("First parsing complete");
 
-        String iteration1String = AstToStringVisitor.toString(iteration1Ast);
+        String iteration1String = AstToStringVisitor.toString(iteration1Ast, compact);
 
         assertThat(iteration1String, not(containsString("null")));
     }
@@ -98,7 +114,7 @@ public class TestParsing {
 
         System.out.println("First parsing complete");
 
-        String iteration1String = AstToStringVisitor.toString(iteration1Ast);
+        String iteration1String = AstToStringVisitor.toString(iteration1Ast, compact);
 
         assertThat(iteration1String, not(containsString("\"")));
     }
@@ -111,7 +127,7 @@ public class TestParsing {
 
         System.out.println("First parsing complete");
 
-        String iteration1String = AstToStringVisitor.toString(iteration1Ast);
+        String iteration1String = AstToStringVisitor.toString(iteration1Ast, compact);
 
         assertThat(iteration1String, containsString("\""));
     }
@@ -124,7 +140,7 @@ public class TestParsing {
 
         System.out.println("First parsing complete");
 
-        String iteration1String = AstToStringVisitor.toString(iteration1Ast);
+        String iteration1String = AstToStringVisitor.toString(iteration1Ast, compact);
 
         assertThat(iteration1String, containsString("do"));
     }
@@ -135,31 +151,31 @@ public class TestParsing {
                 "var test = function () {\n" +
                 "    ;\n" +
                 "}"
-        );
+                , compact);
     }
 
     @Test
     public void doWhileTest() throws Exception {
-        testParse("do {} while (this.expect(','));");
+        testParse("do {} while (this.expect(','));", compact);
     }
 
-    public static void testFile(String file) throws IOException {
+    public static void testFile(String file, boolean compact) throws IOException {
         String script = Util.readFile(file);
 
-        testParse(script);
+        testParse(script, compact);
     }
 
-    private static void testParse(String content) {
+    private static void testParse(String content, boolean compact) {
         JavaScriptParser parser = new JavaScriptParser(ParseDeclaration.Environment.ES5DOM);
         Statement iteration1Ast = parser.parse("name", content).toTSCreateAST().getBody();
 
         System.out.println("First parsing complete");
 
-        String iteration1String = AstToStringVisitor.toString(iteration1Ast);
+        String iteration1String = AstToStringVisitor.toString(iteration1Ast, compact);
 
         Statement iteration2Ast = parser.parse("name", iteration1String).toTSCreateAST().getBody();
 
-        String iteration2String = AstToStringVisitor.toString(iteration2Ast);
+        String iteration2String = AstToStringVisitor.toString(iteration2Ast, compact);
 
         assertThat(iteration1String, Is.is(equalTo(iteration2String)));
     }

@@ -44,6 +44,9 @@ public class TypeWithContext {
 
     @Override
     public String toString() {
+        if (typeContext.getMap().isEmpty() && typeContext.getThisType() == null) {
+            return type.toString();
+        }
         return "<" + type + ", " + typeContext + ">";
     }
 }

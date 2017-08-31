@@ -1,23 +1,14 @@
-/*
-interface Foo {
-    value: number[];
+/*interface Bar {
+    value: true;
 }
 declare module module {
-    function gen(): Foo;
-    function test(a: Foo): true;
+    function gen(): Bar; // always returns something incorrect, therefore all tests only run if this method ever gets overwritten.
 }*/
 
 module.exports = {
     gen: function () {
         return {
-            value: [1],
-            mySpecialMarker: true // <- With this one, i will know the value came from here.
+            value: false
         }
-    },
-    test: function (a) {
-        if (!a.mySpecialMarker) {
-            return true;
-        }
-        return a.value[0] == 1;
     }
 };

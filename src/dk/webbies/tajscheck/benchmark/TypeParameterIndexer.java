@@ -1,6 +1,7 @@
 package dk.webbies.tajscheck.benchmark;
 
 import dk.au.cs.casa.typescript.types.TypeParameterType;
+import dk.webbies.tajscheck.benchmark.options.CheckOptions;
 
 import java.util.HashMap;
 import java.util.Map;

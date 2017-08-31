@@ -113,6 +113,9 @@ public class OutputParser {
 
         for (int i = 0; i < split.size(); i++) {
             String line = split.get(i);
+            if (line.startsWith(" ") && line.trim().startsWith("at ")) {
+                continue; // Is likely a stacktrace thing.
+            }
 
             if (line.startsWith("Test called: ")) {
                 int testCalled = Integer.parseInt(Util.removePrefix(line, "Test called: ").trim());

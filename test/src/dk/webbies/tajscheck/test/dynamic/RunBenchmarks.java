@@ -1,21 +1,14 @@
 package dk.webbies.tajscheck.test.dynamic;
 
 import dk.au.cs.casa.typescript.types.Type;
-import dk.au.cs.casa.typescript.types.Type;
 import dk.webbies.tajscheck.CoverageResult;
 import dk.webbies.tajscheck.Main;
 import dk.webbies.tajscheck.OutputParser;
 import dk.webbies.tajscheck.RunSmall;
 import dk.webbies.tajscheck.benchmark.Benchmark;
-import dk.webbies.tajscheck.benchmark.BenchmarkInfo;
-import dk.webbies.tajscheck.benchmark.CheckOptions;
+import dk.webbies.tajscheck.benchmark.options.CheckOptions;
 import dk.webbies.tajscheck.parsespec.ParseDeclaration;
-import dk.webbies.tajscheck.paser.AST.Statement;
 import dk.webbies.tajscheck.test.TestParsing;
-import dk.webbies.tajscheck.test.experiments.CountUniques;
-import dk.webbies.tajscheck.testcreator.TestCreator;
-import dk.webbies.tajscheck.util.MultiMap;
-import dk.webbies.tajscheck.util.Pair;
 import dk.webbies.tajscheck.test.experiments.CountUniques;
 import dk.webbies.tajscheck.util.MultiMap;
 import dk.webbies.tajscheck.util.Pair;
@@ -23,10 +16,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.kohsuke.args4j.CmdLineException;
-import org.kohsuke.args4j.CmdLineParser;
 
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -55,15 +45,18 @@ public class RunBenchmarks {
     }
 
     static {
-        CheckOptions options = CheckOptions.builder().setSplitUnions(false).build();
+        CheckOptions options = CheckOptions.builder()
+                .setSplitUnions(false) // Because some of these benchmarks use an insane amount of overloads, so this can cause the size of the generated program to explode (about a factor 400x for moment).
+                .setCompactOutput(true)
+                .build();
 
         register(new Benchmark("Moment.js", ParseDeclaration.Environment.ES5Core, "test/benchmarks/moment/moment.js", "test/benchmarks/moment/moment.d.ts", BROWSER, options));
         register(new Benchmark("async", ParseDeclaration.Environment.ES5Core, "test/benchmarks/async/async.js", "test/benchmarks/async/async.d.ts", BROWSER, options));
         register(new Benchmark("async-motivating", ParseDeclaration.Environment.ES5Core, "test/benchmarks/async/async.js", "test/benchmarks/async/async-motivating.d.ts", BROWSER, options));
 
         register(new Benchmark("pathjs", ParseDeclaration.Environment.ES5Core, "test/benchmarks/pathjs/pathjs.js", "test/benchmarks/pathjs/pathjs.d.ts", BROWSER, options));
-        register(new Benchmark("accounting.js", ParseDeclaration.Environment.ES5Core, "test/benchmarks/accounting/accounting.js", "test/benchmarks/accounting/accounting.d.ts", NODE, options));
-        register(new Benchmark("lunr.js", ParseDeclaration.Environment.ES5Core, "test/benchmarks/lunr/lunr.js", "test/benchmarks/lunr/lunr.d.ts", NODE, options));
+        register(new Benchmark("accounting.js", ParseDeclaration.Environment.ES5Core, "test/benchmarks/accounting/accounting.js", "test/benchmarks/accounting/accounting.d.ts", BROWSER, options));
+        register(new Benchmark("lunr.js", ParseDeclaration.Environment.ES5Core, "test/benchmarks/lunr/lunr.js", "test/benchmarks/lunr/lunr.d.ts", BROWSER, options));
         register(new Benchmark("PixiJS", ParseDeclaration.Environment.ES5Core, "test/benchmarks/pixi/pixi.js", "test/benchmarks/pixi/pixi.d.ts", BROWSER, options));
 
         /*"fixedMoment", new Benchmark(ParseDeclaration.Environment.ES5Core, "test/benchmarks/fixedMoment/moment.js", "test/benchmarks/fixedMoment/moment.d.ts", "moment", NODE, options));*/
@@ -82,8 +75,8 @@ public class RunBenchmarks {
 
         Benchmark underscore = new Benchmark("Underscore.js", ParseDeclaration.Environment.ES5Core, "test/benchmarks/underscore/underscore.js", "test/benchmarks/underscore/underscore.d.ts", NODE,
                 options.getBuilder()
-                .setFirstMatchSignaturePolicy(false)
-                .build()
+                        .setFirstMatchSignaturePolicy(false)
+                        .build()
         );
         register(underscore);
 
@@ -99,15 +92,17 @@ public class RunBenchmarks {
         register(new Benchmark("Fabric.js", ParseDeclaration.Environment.ES5Core, "test/benchmarks/fabric/fabric.js", "test/benchmarks/fabric/fabric.d.ts", BROWSER, options));
 
         register(new Benchmark("Ember.js", ParseDeclaration.Environment.ES5DOM, "test/benchmarks/ember/ember.js", "test/benchmarks/ember/ember.d.ts", BROWSER, options)
-            .addDependencies(jQuery, handlebars)
+                .addDependencies(jQuery, handlebars)
         );
 
-        register(new Benchmark("D3.js", ParseDeclaration.Environment.ES5Core, "test/benchmarks/d3/d3.js", "test/benchmarks/d3/d3.d.ts", BROWSER, options));
+        register(new Benchmark("D3.js", ParseDeclaration.Environment.ES5Core, "test/benchmarks/d3/d3.js", "test/benchmarks/d3/d3.d.ts", BROWSER, options.getBuilder()
+                .setDisableGenerics(true)
+                .build()));
 
         register(new Benchmark("MathJax", ParseDeclaration.Environment.ES5Core, "test/benchmarks/mathjax/mathjax.js", "test/benchmarks/mathjax/mathjax.d.ts", BROWSER, options));
 
         register(new Benchmark("PeerJS", ParseDeclaration.Environment.ES5Core, "test/benchmarks/peerjs/peerjs.js", "test/benchmarks/peerjs/peerjs.d.ts", BROWSER, options));
-        register(new Benchmark("PleaseJS", ParseDeclaration.Environment.ES5Core, "test/benchmarks/pleasejs/please.js", "test/benchmarks/pleasejs/please.d.ts", NODE, options));
+        register(new Benchmark("PleaseJS", ParseDeclaration.Environment.ES5Core, "test/benchmarks/pleasejs/please.js", "test/benchmarks/pleasejs/please.d.ts", BROWSER, options));
         Benchmark webcomponents = new Benchmark("webcomponents.js", ParseDeclaration.Environment.ES5Core, "test/benchmarks/webcomponents/webcomponents.js", "test/benchmarks/webcomponents/webcomponents.d.ts", BROWSER, options); // Doesn't really directly expose an API, so I'm just keeping it as dependency only.
         register(new Benchmark("Polymer", ParseDeclaration.Environment.ES5Core, "test/benchmarks/polymer/polymer.js", "test/benchmarks/polymer/polymer.d.ts", BROWSER, options).addDependencies(webcomponents));
         register(new Benchmark("q", ParseDeclaration.Environment.ES5Core, "test/benchmarks/q/q.js", "test/benchmarks/q/q.d.ts", NODE, options));
@@ -117,8 +112,8 @@ public class RunBenchmarks {
         register(new Benchmark("RequireJS", ParseDeclaration.Environment.ES5Core, "test/benchmarks/requirejs/require.js", "test/benchmarks/requirejs/requirejs.d.ts", BROWSER, options).addDependencies(jQuery));
         register(new Benchmark("Sugar", ParseDeclaration.Environment.ES6DOM, "test/benchmarks/sugar/sugar.js", "test/benchmarks/sugar/sugar.d.ts", NODE,
                 options.getBuilder()
-                .setDisableGenerics(true)
-                .build()
+                        .setDisableGenerics(true)
+                        .build()
 
         ));
 
@@ -127,8 +122,8 @@ public class RunBenchmarks {
         register(new Benchmark("Vue.js", ParseDeclaration.Environment.ES6DOM, "test/benchmarks/vue/vue.js", "test/benchmarks/vue/index.d.ts", BROWSER, options));
         register(new Benchmark("three.js", ParseDeclaration.Environment.ES6DOM, "test/benchmarks/three/three.js", "test/benchmarks/three/three.d.ts", BROWSER,
                 options.getBuilder()
-                .setDisableGenerics(true)
-                .build()
+                        .setDisableGenerics(true)
+                        .build()
         ));
         register(new Benchmark("Leaflet", ParseDeclaration.Environment.ES5Core, "test/benchmarks/leaflet/leaflet.js", "test/benchmarks/leaflet/leaflet.d.ts", BROWSER, options));
 
@@ -150,8 +145,7 @@ public class RunBenchmarks {
         register(new Benchmark("Redux", ParseDeclaration.Environment.ES5Core, "test/benchmarks/redux/redux.js", "test/benchmarks/redux/reduxModule.d.ts", NODE, options, "redux"));
 
         register(new Benchmark("Ionic", ParseDeclaration.Environment.ES5Core, "test/benchmarks/ionic/ionic.js", "test/benchmarks/ionic/ionic.d.ts", BROWSER, options)
-            .addDependencies(jQuery)
-            .addDependencies(angular)
+                .addDependencies(jQuery, angular)
         );
 
         register(new Benchmark("Foundation", ParseDeclaration.Environment.ES5Core, "test/benchmarks/foundation/foundation.js", "test/benchmarks/foundation/foundation.d.ts", BROWSER, options)
@@ -166,8 +160,7 @@ public class RunBenchmarks {
 
         Benchmark pickadate = new Benchmark("pickadate.js", ParseDeclaration.Environment.ES5Core, "test/benchmarks/pickadate/picker.js", "test/benchmarks/pickadate/pickadate.d.ts", BROWSER, options).addDependencies(jQuery); // Just a jQuery plugin, I therefore don't test it.
         register(new Benchmark("Materialize", ParseDeclaration.Environment.ES5Core, "test/benchmarks/materialize/materialize.js", "test/benchmarks/materialize/materialize.d.ts", BROWSER, options)
-                .addDependencies(jQuery)
-                .addDependencies(pickadate)
+                .addDependencies(jQuery, pickadate)
         );
 
         register(new Benchmark("CodeMirror", ParseDeclaration.Environment.ES5Core, "test/benchmarks/codemirror/codemirror.js", "test/benchmarks/codemirror/codemirror.d.ts", BROWSER, options));
@@ -207,6 +200,7 @@ public class RunBenchmarks {
     }
 
     @Test
+    @Ignore
     public void runSmallDrivers() throws Exception {
         OutputParser.RunResult result = OutputParser.combine(RunSmall.runSmallDrivers(benchmark, RunSmall.runDriver(benchmark), 3, Integer.MAX_VALUE));
 
@@ -218,7 +212,10 @@ public class RunBenchmarks {
     @Test
     public void runFullDriver() throws Exception {
         // Write the driver
-        Main.writeFullDriver(benchmark.withOptions(CheckOptions::errorFindingOptions).withOptions(options -> options.setCombineAllUnboundGenerics(true)));
+        Benchmark b = benchmark
+                .withOptions(CheckOptions::errorFindingOptions);
+//                .withOptions(CheckOptions::monitorUnknownPropertyAccesses);
+        Main.writeFullDriver(b);
 
         String out = Main.runBenchmark(benchmark);
 //        System.out.println(out);
@@ -226,14 +223,18 @@ public class RunBenchmarks {
         // Parse and print the result
         OutputParser.RunResult result = OutputParser.parseDriverResult(out);
 
-        printErrors(benchmark, result);
+        printErrors(b, result);
 
+        for (String error: result.errors) {
+            System.out.println(error);
+        }
+
+        System.out.println();
 
         assert !out.trim().isEmpty();
     }
 
     @Test
-    @Ignore
     public void coverage() throws Exception {
         if (Stream.of("underscore.d.ts", "fabric", "d3.d.ts", "backbone.d.ts", "three.d.ts").anyMatch(benchmark.dTSFile::contains)) {
             return; // Too big, node runs out of memory generating the instrumented version.
@@ -246,7 +247,7 @@ public class RunBenchmarks {
 
     @Test
     public void soundnessTest() throws Exception {
-        Benchmark benchmark = this.benchmark.withRunMethod(BOOTSTRAP).withOptions(options -> options.setMaxIterationsToRun(100 * 1000).setConstructAllTypes(true).setCheckDepthReport(0));
+        Benchmark benchmark = this.benchmark.withRunMethod(BOOTSTRAP).withOptions(options -> options.setMaxIterationsToRun(100 * 1000).setConstructAllTypes(true).setCheckDepthReport(0).setCompactOutput(true));
         if (
                 benchmark.dTSFile.contains("box2dweb.d.ts") ||// box2dweb uses bivariant function arguments, which is unsound, and causes this soundness-test to fail. (demonstrated in complexSanityCheck3)
                 benchmark.dTSFile.contains("leaflet.d.ts") || // same unsoundness in leaflet. (Demonstrated in complexSanityCheck9)
@@ -261,7 +262,7 @@ public class RunBenchmarks {
                 benchmark.dTSFile.contains("angular1.d.ts") ||  // Includes jQuery.
                 benchmark.dTSFile.contains("ionic.d.ts")  || // Includes angular, which includes jQuery.
                 benchmark.dTSFile.contains("sugar.d.ts") // has known unsoundness, demonstrated in complexSanityCheck23
-        ) {
+                ) {
             System.out.println("Is a benchmark which i know to fail. ");
             return;
         }
@@ -283,7 +284,8 @@ public class RunBenchmarks {
     public void testParsing() throws Exception {
         // A sanitycheck that JavaScript parsing+printing is idempotent.
         System.out.println(benchmark.jsFile);
-        TestParsing.testFile(benchmark.jsFile);
+        TestParsing.testFile(benchmark.jsFile, true);
+        TestParsing.testFile(benchmark.jsFile, false);
     }
 
     public static void printErrors(Benchmark bench, OutputParser.RunResult result) {
@@ -291,7 +293,6 @@ public class RunBenchmarks {
 
         for (Map.Entry<Pair<Type, String>, Collection<OutputParser.TypeError>> entry : groups.asMap().entrySet()) {
             Collection<OutputParser.TypeError> errors = entry.getValue();
-            assert !errors.isEmpty();
 
             if (errors.size() == 1) {
                 System.out.println(errors.iterator().next());

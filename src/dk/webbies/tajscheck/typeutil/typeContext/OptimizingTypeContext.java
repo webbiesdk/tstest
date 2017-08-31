@@ -5,8 +5,10 @@ import dk.webbies.tajscheck.TypeWithContext;
 import dk.webbies.tajscheck.benchmark.BenchmarkInfo;
 import dk.webbies.tajscheck.typeutil.TypesUtil;
 import dk.webbies.tajscheck.util.Pair;
+import dk.webbies.tajscheck.util.Util;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Created by erik1 on 12-01-2017.
@@ -42,9 +44,6 @@ public class OptimizingTypeContext implements TypeContext {
     }
 
     private OptimizingTypeContext(Map<TypeParameterType, Type> map, Type thisType, BenchmarkInfo info, Map<OptimizingTypeContext, OptimizingTypeContext> cache, Map<Pair<Type, OptimizingTypeContext>, OptimizingTypeContext> optimizationCache) {
-        if (map == null) {
-            throw new RuntimeException();
-        }
         this.map = map;
         this.thisType = thisType;
         this.info = info;
@@ -54,6 +53,23 @@ public class OptimizingTypeContext implements TypeContext {
 
     @Override
     public OptimizingTypeContext append(Map<TypeParameterType, Type> newParameters) {
+        if (newParameters.isEmpty()) {
+            return this;
+        }
+        newParameters = newParameters.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> {
+            Type value = entry.getValue();
+            if (!this.map.containsKey(entry.getKey())) {
+                return value;
+            }
+            int counter = 0;
+            while (value instanceof TypeParameterType && this.map.containsKey(value)) {
+                if (counter++ > 10) {
+                    break;
+                }
+                value = this.map.get(value);
+            }
+            return value;
+        }));
         Map<TypeParameterType, Type> newMap = new HashMap<>(this.map);
         newMap.putAll(newParameters);
         return new OptimizingTypeContext(newMap, this.thisType, info, cache, optimizationCache).cannonicalize();
@@ -64,7 +80,7 @@ public class OptimizingTypeContext implements TypeContext {
         if (thisType == null || this.thisType == null) {
             return new OptimizingTypeContext(this.map, thisType, info, cache, optimizationCache);
         }
-        Set<Type> baseTypes = TypesUtil.getAllBaseTypes(this.thisType, new HashSet<>());
+        Set<Type> baseTypes = info.typesUtil.getAllBaseTypes(this.thisType, new HashSet<>());
 
         if (baseTypes.contains(thisType)) {
             return this;
@@ -157,7 +173,7 @@ public class OptimizingTypeContext implements TypeContext {
 
         Set<TypeParameterType> reachable = new HashSet<>(info.freeGenericsFinder.findFreeGenerics(baseType));
 
-        clone.map.keySet().retainAll(reachable);
+        clone.map.keySet().retainAll(Util.concat(reachable, this.map.values()));
 
         boolean progress = true;
         while (progress) {
@@ -175,40 +191,29 @@ public class OptimizingTypeContext implements TypeContext {
             }
         }
 
-        if (info.bench.options.combineAllUnboundGenerics) {
-            boolean foundShortcut = false;
-            for (Map.Entry<TypeParameterType, Type> entry : new HashMap<>(clone.map).entrySet()) {
-                Type keyConstraint = entry.getKey().getConstraint();
-                if (keyConstraint != null && !TypesUtil.isEmptyInterface(keyConstraint)) {
-                    continue;
-                }
-                if (entry.getValue() instanceof TypeParameterType) {
-                    Type valueConstraint = ((TypeParameterType) entry.getValue()).getConstraint();
-                    if (valueConstraint != null && !TypesUtil.isEmptyInterface(valueConstraint)) {
-                        continue;
-                    }
-                    if (!reachable.contains(entry.getValue())) {
-                        foundShortcut = true;
-                        clone.map.remove(entry.getKey());
-                    }
-                }
-            }
-            if (foundShortcut) {
-                return clone.uncannocilizatingOptimizeTypeParameters(baseType);
-            }
-        }
-
         if (clone.thisType != null) {
             OptimizingTypeContext finalClone = clone;
             if (!info.freeGenericsFinder.isThisTypeVisible(baseType, clone.thisType) && clone.map.values().stream().noneMatch(value -> info.freeGenericsFinder.isThisTypeVisible(value, finalClone.thisType))) {
                 clone = clone.withThisType(null);
             } else if ((baseType instanceof InterfaceType || baseType instanceof GenericType || baseType instanceof ClassInstanceType) && !info.freeGenericsFinder.isThisTypeVisible(baseType, finalClone.thisType) && clone.map.values().stream().noneMatch(value -> info.freeGenericsFinder.isThisTypeVisible(value, finalClone.thisType))) {
-                Set<Type> allBaseTypes = TypesUtil.getAllBaseTypes(clone.thisType, new HashSet<>());
+                Set<Type> allBaseTypes = info.typesUtil.getAllBaseTypes(clone.thisType, new HashSet<>());
                 if (!allBaseTypes.contains(baseType)) {
                     clone = clone.withThisType(null);
                 }
             }
         }
         return clone;
+    }
+
+    @Override
+    public String toString() {
+        if (map.isEmpty() && thisType == null) {
+            return "TypeContext{}";
+        }
+
+        return "TypeContext{" +
+                "map=" + map +
+                ", thisType=" + thisType +
+                '}';
     }
 }

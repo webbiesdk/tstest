@@ -1,5 +1,6 @@
 package dk.webbies.tajscheck.paser;
 
+import dk.webbies.tajscheck.benchmark.BenchmarkInfo;
 import dk.webbies.tajscheck.paser.AST.*;
 import dk.webbies.tajscheck.util.Pair;
 import dk.webbies.tajscheck.util.Util;
@@ -19,6 +20,11 @@ import static dk.webbies.tajscheck.paser.AstBuilder.*;
 public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVisitor<Void> {
     private int ident = 0;
     private StringBuilder builder = new StringBuilder();
+    private final boolean compact;
+
+    public AstToStringVisitor(boolean compact) {
+        this.compact = compact;
+    }
 
     @Override
     public Void visit(BinaryExpression binOp) {
@@ -199,7 +205,8 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
         }
         writeArgs(func.getArguments());
         if (!explode(func.getBody()).isEmpty()) {
-            write(" {\n");
+            write(" {");
+            newLine();
             ident++;
             writeAsBlock(func.getBody());
             ident--;
@@ -275,7 +282,8 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
         if (object.getProperties().isEmpty()) {
             write("{}");
         } else {
-            write("{\n");
+            write("{");
+            newLine();
             ident++;
             for (int i = 0; i < object.getProperties().size(); i++) {
                 ObjectLiteral.Property property = object.getProperties().get(i);
@@ -288,7 +296,8 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
                     write(" (");
                     write(setter.getParameter().getName());
                     write(")");
-                    write(" {\n");
+                    write(" {");
+                    newLine();
                     ident++;
                     writeAsBlock(setter.getBody());
                     ident--;
@@ -299,7 +308,8 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
                     write("get ");
                     string(property.name).accept(this);
                     write(" ()");
-                    write(" {\n");
+                    write(" {");
+                    newLine();
                     ident++;
                     writeAsBlock(getter.getBody());
                     ident--;
@@ -317,7 +327,7 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
                 if (i != object.getProperties().size() - 1) {
                     write(", ");
                 }
-                write("\n");
+                newLine();
             }
 
             ident--;
@@ -462,11 +472,13 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
     public Void visit(BreakStatement breakStatement) {
         ident();
         if (breakStatement.getLabel() == null) {
-            write("break;\n");
+            write("break;");
+            newLine();
         } else {
             write("break ");
             write(breakStatement.getLabel());
-            write(";\n");
+            write(";");
+            newLine();
         }
         return null;
     }
@@ -474,7 +486,8 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
     @Override
     public Void visit(ContinueStatement continueStatement) {
         ident();
-        write("continue;\n");
+        write("continue;");
+        newLine();
         return null;
     }
 
@@ -483,9 +496,10 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
         ident();
         expressionStatement.getExpression().accept(this);
         if (expressionStatement.getExpression() instanceof FunctionExpression) {
-            write("\n");
+            newLine();
         } else {
-            write(";\n");
+            write(";");
+            newLine();
         }
         return null;
     }
@@ -556,14 +570,16 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
             forStatement.getIncrement().accept(this);
         }
 
-        write(") {\n");
+        write(") {");
+        newLine();
         ident++;
 
         writeAsBlock(forStatement.getBody());
 
         ident--;
         ident();
-        write("} \n");
+        write("} ");
+        newLine();
 
         return null;
     }
@@ -577,7 +593,8 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
         ident();
         write("if (");
         ifStatement.getCondition().accept(this);
-        write(") {\n");
+        write(") {");
+        newLine();
         ident++;
         Statement ifBranch = ifStatement.getIfBranch();
         writeAsBlock(ifBranch);
@@ -586,14 +603,15 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
         write("}");
         Statement elseBranch = ifStatement.getElseBranch();
         if (elseBranch != null) {
-            write(" else { \n");
+            write(" else { ");
+            newLine();
             ident++;
             writeAsBlock(elseBranch);
             ident--;
             ident();
             write("}");
         }
-        write("\n");
+        newLine();
         return null;
     }
 
@@ -607,9 +625,11 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
         if (aReturn.getExpression() != null && !(aReturn.getExpression() instanceof UnaryExpression && ((UnaryExpression) aReturn.getExpression()).getOperator() == Operator.VOID && ((UnaryExpression) aReturn.getExpression()).getExpression() instanceof NumberLiteral)) {
             write("return ");
             aReturn.getExpression().accept(this);
-            write(";\n");
+            write(";");
+            newLine();
         } else {
-            write("return;\n");
+            write("return;");
+            newLine();
         }
         return null;
     }
@@ -619,13 +639,15 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
         ident();
         write("switch (");
         switchStatement.getExpression().accept(this);
-        write(") {\n");
+        write(") {");
+        newLine();
         ident++;
         for (Pair<Expression, Statement> pair : switchStatement.getCases()) {
             ident();
             write("case ");
             pair.getLeft().accept(this);
-            write(":\n");
+            write(":");
+            newLine();
             ident++;
             writeAsBlock(pair.getRight());
             ident--;
@@ -633,7 +655,8 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
 
         if (switchStatement.getDefaultCase() != null) {
             ident();
-            write("default: \n");
+            write("default: ");
+            newLine();
             ident++;
             writeAsBlock(switchStatement.getDefaultCase());
             ident--;
@@ -641,7 +664,8 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
 
         ident--;
         ident();
-        write("}\n");
+        write("}");
+        newLine();
         return null;
     }
 
@@ -651,7 +675,8 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
 
         write("throw ");
         throwStatement.getExpression().accept(this);
-        write(";\n");
+        write(";");
+        newLine();
 
         return null;
     }
@@ -664,11 +689,13 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
             variableNode.getlValue().accept(this);
             write(" = ");
             variableNode.getInit().accept(this);
-            write(";\n");
+            write(";");
+            newLine();
         } else {
             write("var ");
             variableNode.getlValue().accept(this);
-            write(";\n");
+            write(";");
+            newLine();
         }
         return null;
     }
@@ -679,26 +706,30 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
         ident();
         write("while (");
         whileStatement.getCondition().accept(this);
-        write(") {\n");
+        write(") {");
+        newLine();
         ident++;
         writeAsBlock(whileStatement.getBody());
         ident--;
         ident();
-        write("} \n");
+        write("} ");
+        newLine();
         return null;
     }
 
     @Override
     public Void visit(DoWhileStatement doWhileStatement) {
         ident();
-        write("do {\n");
+        write("do {");
+        newLine();
         ident++;
         writeAsBlock(doWhileStatement.getBody());
         ident--;
         ident();
         write("} while (");
         doWhileStatement.getCondition().accept(this);
-        write(")\n");
+        write(")");
+        newLine();
         return null;
     }
 
@@ -706,12 +737,14 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
     public Void visit(LabeledStatement labeledStatement) {
         write(labeledStatement.getName() + ":");
         if (labeledStatement.getStatement() instanceof BlockStatement) {
-            write("{\n");
+            write("{");
+            newLine();
             ident++;
             writeAsBlock(labeledStatement.getStatement());
             ident--;
             ident();
-            write("}\n");
+            write("}");
+            newLine();
         } else {
             writeAsBlock(labeledStatement.getStatement());
         }
@@ -745,14 +778,16 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
 
         forinStatement.getCollection().accept(this);
 
-        write(") {\n");
+        write(") {");
+        newLine();
         ident++;
 
         writeAsBlock(forinStatement.getBody());
 
         ident--;
         ident();
-        write("} \n");
+        write("} ");
+        newLine();
 
         return null;
     }
@@ -762,7 +797,8 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
         assert tryStatement.getCatchBlock() != null || tryStatement.getFinallyBlock() != null;
         ident();
 
-        write("try {\n");
+        write("try {");
+        newLine();
 
         ident++;
         writeAsBlock(tryStatement.getTryBlock());
@@ -770,7 +806,8 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
 
         if (tryStatement.getCatchBlock() != null) {
             ident();
-            write("} catch(" + tryStatement.getCatchBlock().getException().getName() + ") { \n");
+            write("} catch(" + tryStatement.getCatchBlock().getException().getName() + ") { ");
+            newLine();
 
             ident++;
             writeAsBlock(tryStatement.getCatchBlock().getBody());
@@ -786,7 +823,7 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
             ident();
             write("}" );
         }
-        write("\n");
+        newLine();
 
         return null;
     }
@@ -798,6 +835,9 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
 
     @Override
     public Void visit(CommentStatement commentStatement) {
+        if (compact) {
+            return null;
+        }
         for (String comment : commentStatement.getComment().split("\n")) {
             writeLn("// " + comment);
         }
@@ -805,20 +845,28 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
         return null;
     }
 
-    public static String toString(Expression exp) {
-        AstToStringVisitor visitor = new AstToStringVisitor();
+    public static String toString(Expression exp, BenchmarkInfo info) {
+        return toString(exp, info.options.compactOutput);
+    }
+
+    public static String toString(Expression exp, boolean compact) {
+        AstToStringVisitor visitor = new AstToStringVisitor(compact);
         exp.accept(visitor);
         return visitor.builder.toString();
     }
 
-    public static String toString(Statement stmt) {
-        AstToStringVisitor visitor = new AstToStringVisitor();
+    public static String toString(Statement stmt, boolean compact) {
+        AstToStringVisitor visitor = new AstToStringVisitor(compact);
         if (stmt instanceof BlockStatement) {
             visitor.writeAsBlock(stmt);
         } else {
             stmt.accept(visitor);
         }
         return visitor.builder.toString();
+    }
+
+    public static String toString(Statement stmt, BenchmarkInfo info) {
+        return toString(stmt, info.options.compactOutput);
     }
 
     private void write(String s) {
@@ -832,19 +880,22 @@ public class AstToStringVisitor implements ExpressionVisitor<Void>, StatementVis
     private void writeLn(String s) {
         ident();
         write(s);
-        write("\n");
+        newLine();
     }
 
-    private void ident() {
-        for (int i = 0; i < this.ident; i++) {
-            builder.append("    ");
+    private void newLine() {
+        if (!compact) {
+            write("\n");
         }
     }
 
-    public static String toString(List<Statement> program) {
-        AstToStringVisitor visitor = new AstToStringVisitor();
-        program.forEach(visitor::accept);
-        return visitor.builder.toString();
+    private void ident() {
+        if (compact) {
+            return;
+        }
+        for (int i = 0; i < this.ident; i++) {
+            builder.append("    ");
+        }
     }
 
     private void accept(Statement statement) {

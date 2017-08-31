@@ -51,9 +51,4 @@ public class MethodCallTest extends FunctionTest {
     public <T> T accept(TestVisitor<T> visitor) {
         return visitor.visit(this);
     }
-
-    @Override
-    public String toString() {
-        return this.getClass().getSimpleName()+"(" + object + "." + propertyName + "())";
-    }
 }

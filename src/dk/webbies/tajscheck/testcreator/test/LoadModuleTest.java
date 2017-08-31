@@ -54,7 +54,4 @@ public class LoadModuleTest extends Test {
     public <T> T accept(TestVisitor<T> visitor) {
         return visitor.visit(this);
     }
-
-    @Override
-    public String toString() { return this.getClass().getSimpleName()+"(" + module + ":" + moduleType + ")";}
 }

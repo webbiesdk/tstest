@@ -47,7 +47,7 @@ public class RunSmall {
 
             String filePath = Main.getFolderPath(bench) + Main.TEST_FILE_NAME;
 
-            Util.writeFile(filePath, AstToStringVisitor.toString(program));
+            Util.writeFile(filePath, AstToStringVisitor.toString(program, info.options.compactOutput));
 
             try {
                 result.add(runner.apply(filePath));

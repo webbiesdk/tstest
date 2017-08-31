@@ -252,10 +252,10 @@ public class TypeChecker {
                         );
                     case "Array":
                         assert t.getTypeArguments().size() == 1;
-                        return checkArrayThinghy(t.getTypeArguments().get(0), "Array", arg);
+                        return checkArrayThinghy(t.getDeclaredNumberIndexType(), "Array", arg);
                     case "NodeListOf":
                         assert t.getTypeArguments().size() == 1;
-                        return checkArrayThinghy(t.getTypeArguments().get(0), "NodeList", arg.withDepth(0)); // NodeLists not checked.
+                        return checkArrayThinghy(t.getDeclaredNumberIndexType(), "NodeList", arg.withDepth(0)); // NodeLists not checked.
                     case "ArrayLike":
                     case "IterableIterator":
                     case "Iterator":
@@ -422,7 +422,6 @@ public class TypeChecker {
                     case "Performance":
                     case "SVGImageElement":
                     case "URLSearchParams":
-                    case "ImageBitmap":
                         return Collections.singletonList(new SimpleTypeCheck(Check.instanceOf(identifier(name)), name));
                     case "WebGLRenderingContext":
                         return Collections.singletonList(new SimpleTypeCheck(Check.or(Check.instanceOf(identifier(name)), Check.equalTo(nullLiteral())), name)); // TODO: Headless chrome doesn't have WebGL context.
@@ -476,6 +475,7 @@ public class TypeChecker {
                     case "SpeechSynthesisVoice":
                     case "MSCredentials":
                     case "EventListenerOptions":
+                    case "ImageBitmap":
                     case "ImageBitmapOptions":
                         arg = arg.withDepth(1);
                         break; // Testing manually.
@@ -546,21 +546,10 @@ public class TypeChecker {
 
         @Override
         public List<TypeCheck> visit(ReferenceType t, Arg arg) {
-            if ("Array".equals(info.typeNames.get(t.getTarget()))) {
-                Type indexType = t.getTypeArguments().get(0);
-                return checkArrayThinghy(indexType, "Array", arg);
-            } else if ("ArrayLike".equals(info.typeNames.get(t.getTarget()))) {
-                Type indexType = t.getTypeArguments().get(0);
-                return checkArrayThinghy(indexType, null, arg);
-            }
-
             if (info.nativeTypes.contains(t) && !(info.typeNames.get(t) != null && info.typeNames.get(t).startsWith("window."))) {
                 throw new RuntimeException(info.typeNames.get(t));
             }
-            if (info.nativeTypes.contains(t.getTarget()) && !(t.getTarget() instanceof TupleType) && !(info.typeNames.get(t) != null && info.typeNames.get(t).startsWith("window."))) {
-                throw new RuntimeException(info.typeNames.get(t));
-            }
-            return t.getTarget().accept(this, arg.withContext(arg.typeContext.append(new TypesUtil(info).generateParameterMap(t))));
+            return t.getTarget().accept(this, arg.withContext(arg.typeContext.append(info.typesUtil.generateParameterMap(t))));
         }
 
         private List<TypeCheck> checkArrayThinghy(Type indexType, String instance, Arg arg) {
@@ -719,7 +708,7 @@ public class TypeChecker {
 
         @Override
         public List<TypeCheck> visit(ClassInstanceType t, Arg arg) {
-            return ((ClassType) t.getClassType()).getInstanceType().accept(this, arg);
+            return info.typesUtil.createClassInstanceType(((ClassType) t.getClassType())).accept(this, arg);
         }
 
         @Override
@@ -763,7 +752,7 @@ public class TypeChecker {
         return new SimpleTypeCheck(check, expected.toString());
     }
 
-    static TypeCheck createIntersection(List<TypeCheck> checks) {
+    public static TypeCheck createIntersection(List<TypeCheck> checks) {
         if (checks.isEmpty()) {
             return new SimpleTypeCheck(Check.alwaysTrue(), "[any]");
         }

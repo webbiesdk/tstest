@@ -28,6 +28,7 @@ public class SeleniumDriver {
     public static String executeScript(File dir, String script, int timeout) throws IOException, HttpException {
         return executeScript(dir, script, timeout, 10 * 1000);
     }
+    @SuppressWarnings("Duplicates")
     private static String executeScript(File dir, String script, int timeout, int pageLoadTimeout) throws IOException, HttpException {
         setDriverPath();
 
@@ -63,13 +64,32 @@ public class SeleniumDriver {
         AtomicBoolean gotPage = new AtomicBoolean(false);
         new Thread(() -> {
             try {
-                Thread.sleep(20 * 1000);
+                Thread.sleep(pageLoadTimeout + 10 * 1000);
             } catch (InterruptedException e) {
                 throw new RuntimeException();
             }
             if (!gotPage.get()) {
                 killed.set(true);
                 driver.quit();
+                try {
+                    socket.close();
+                } catch (IOException ignored) { }
+            }
+        }).start();
+
+        AtomicBoolean finished = new AtomicBoolean(false);
+        new Thread(() -> {
+            try {
+                Thread.sleep(timeout + 10 * 1000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException();
+            }
+            if (!finished.get()) {
+                killed.set(true);
+                driver.quit();
+                try {
+                    socket.close();
+                } catch (IOException ignored) { }
             }
         }).start();
 
@@ -156,7 +176,10 @@ public class SeleniumDriver {
         options.addArguments("window-size=400,400");
 
         options.addArguments("headless");
+        options.addArguments("no-sandbox");
         options.addArguments("disable-gpu");
+        options.addArguments("no-default-browser-check");
+        options.addArguments("user-data-dir=./chromedir");
 
         DesiredCapabilities capabilities = DesiredCapabilities.chrome();
         LoggingPreferences loggingPreferences = new LoggingPreferences();

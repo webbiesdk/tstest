@@ -76,10 +76,6 @@ public class TestCreator {
                 topLevelFunctionTests.addAll(addTopLevelFunctionTests(element.type, arg.path, arg.typeContext, visitor, negativeTypesSeen, info.nativeTypes, arg.depth, seenTopLevel));
             }
 
-            if (arg.path.equals("module.LayerGroup.new()")) {
-                System.out.println();
-            }
-
             element.type.accept(visitor, arg.noTopLevelFunctions());
         }
 
@@ -147,6 +143,19 @@ public class TestCreator {
         }
         seenTopLevel.add(key);
 
+        if (type instanceof TypeParameterType) {
+            List<Test> result = new ArrayList<>();
+            TypeParameterType typeParameterType = (TypeParameterType) type;
+            if (typeParameterType.getConstraint() != null) {
+                result.addAll(addTopLevelFunctionTests(((TypeParameterType) type).getConstraint(), path, typeContext, visitor, negativeTypesSeen, info.nativeTypes, depth, seenTopLevel));
+            }
+            if (typeContext.containsKey(typeParameterType)) {
+                TypeWithContext lookup = typeContext.get(typeParameterType);
+                result.addAll(addTopLevelFunctionTests(lookup.getType(), path, lookup.getTypeContext(), visitor, negativeTypesSeen, info.nativeTypes, depth, seenTopLevel));
+            }
+            return result;
+        }
+
         if (info.nativeTypes.contains(type)) {
             return new ArrayList<>();
         }
@@ -178,22 +187,9 @@ public class TestCreator {
             return result;
         }
 
-        if (type instanceof TypeParameterType) {
-            List<Test> result = new ArrayList<>();
-            TypeParameterType typeParameterType = (TypeParameterType) type;
-            if (typeParameterType.getConstraint() != null) {
-                result.addAll(addTopLevelFunctionTests(((TypeParameterType) type).getConstraint(), path, typeContext, visitor, negativeTypesSeen, info.nativeTypes, depth, seenTopLevel));
-            }
-            if (typeContext.containsKey(typeParameterType)) {
-                TypeWithContext lookup = typeContext.get(typeParameterType);
-                result.addAll(addTopLevelFunctionTests(lookup.getType(), path, lookup.getTypeContext(), visitor, negativeTypesSeen, info.nativeTypes, depth, seenTopLevel));
-            }
-            return result;
-        }
-
 
         if (type instanceof ReferenceType) {
-            TypeContext newParameters = new TypesUtil(info).generateParameterMap((ReferenceType) type);
+            Map<TypeParameterType, Type> newParameters = info.typesUtil.generateParameterMap((ReferenceType) type);
             type = ((ReferenceType) type).getTarget();
             path = path + ".<>";
             typeContext = typeContext.append(newParameters);
@@ -323,6 +319,10 @@ public class TestCreator {
             return new Arg(this.path, this.typeContext.append(newParameters), depth);
         }
 
+        private Arg withParameters(Map<TypeParameterType, Type> newParameters) {
+            return new Arg(this.path, this.typeContext.append(newParameters), depth);
+        }
+
         public Arg withTopLevelFunctions() {
             return new Arg(this.path, this.typeContext, this.depth, true);
         }
@@ -421,21 +421,25 @@ public class TestCreator {
             seen.add(withParameters);
 
             if (info.freeGenericsFinder.hasThisTypes(t)) {
-                arg = arg.withThisType(t.getInstanceType());
+                arg = arg.withThisType(info.typesUtil.createClassInstanceType(t));
             }
 
             for (Type baseType : t.getBaseTypes()) {
                 recurse(baseType, arg.withThisType(null).addDepth());
             }
 
-            assert !t.getSignatures().isEmpty();
+            Pair<InterfaceType, Map<TypeParameterType, Type>> pair = info.typesUtil.classToInterface(t);
+            InterfaceType inter = pair.getLeft();
+            arg = arg.withTypeContext(arg.getTypeContext().append(pair.getRight()));
+
+            assert !inter.getDeclaredConstructSignatures().isEmpty();
             ArrayList<Signature> precedingSignatures = new ArrayList<>();
-            for (Signature signature : t.getSignatures()) {
+            for (Signature signature : inter.getDeclaredConstructSignatures()) {
                 tests.add(new ConstructorCallTest(t, signature.getParameters().stream().map(Signature.Parameter::getType).collect(Collectors.toList()), t.getInstance(), arg.path, arg.typeContext, signature.isHasRestParameter(), new ArrayList<>(precedingSignatures)));
                 precedingSignatures.add(signature);
             }
 
-            recurse(t.getInstanceType(), arg.append("new()"));
+            recurse(info.typesUtil.createClassInstanceType(t), arg.append("new()"));
 
             visitProperties(t, arg.withThisType(null), t.getStaticProperties());
 
@@ -447,15 +451,7 @@ public class TestCreator {
             TypeWithContext withParameters = new TypeWithContext(t, arg.getTypeContext());
             if (info.typeNames.get(t).equals("Array")) {
                 assert t.getTypeParameters().size() == 1;
-                TypeParameterType parameterType = (TypeParameterType) t.getTypeParameters().iterator().next();
-                Type arrayType;
-                if (arg.getTypeContext().containsKey(parameterType)) {
-                    TypeWithContext lookup = arg.typeContext.get(parameterType);
-                    arg = arg.withParameters(arg.getTypeContext());
-                    arrayType = lookup.getType();
-                } else {
-                    arrayType = parameterType;
-                }
+                Type arrayType = t.getDeclaredNumberIndexType();
                 tests.add(new NumberIndexTest(t, arrayType, arg.path, arg.typeContext));
                 recurse(arrayType, arg.append("[numberIndexer]").withTopLevelFunctions());
 
@@ -502,21 +498,19 @@ public class TestCreator {
                 arg = arg.withThisType(t);
             }
 
-            TypesUtil typesUtil = new TypesUtil(info);
-
-            for (TypeWithContext stringIndexer : typesUtil.getAllStringIndexerTypes(t, arg.typeContext)) {
+            for (TypeWithContext stringIndexer : info.typesUtil.getAllStringIndexerTypes(t, arg.typeContext)) {
                 Arg subArg = arg.withTypeContext(stringIndexer.getTypeContext());
                 tests.add(new StringIndexTest(t, stringIndexer.getType(), arg.path, subArg.typeContext));
                 recurse(stringIndexer.getType(), subArg.append("[stringIndexer]").withTopLevelFunctions());
             }
 
-            for (TypeWithContext stringIndexer : typesUtil.getAllNumberIndexerTypes(t, arg.typeContext)) {
+            for (TypeWithContext stringIndexer : info.typesUtil.getAllNumberIndexerTypes(t, arg.typeContext)) {
                 Arg subArg = arg.withTypeContext(stringIndexer.getTypeContext());
                 tests.add(new NumberIndexTest(t, stringIndexer.getType(), arg.path, subArg.typeContext));
                 recurse(stringIndexer.getType(), subArg.append("[numberIndexer]").withTopLevelFunctions());
             }
 
-            for (Pair<TypeContext, Map<String, Type>> propertiesPair : typesUtil.getAllPropertyDeclarations(t, arg.typeContext)) {
+            for (Pair<TypeContext, Map<String, Type>> propertiesPair : info.typesUtil.getAllPropertyDeclarations(t, arg.typeContext)) {
                 Arg subArg = arg.withTypeContext(propertiesPair.getLeft());
                 visitProperties(t, subArg, propertiesPair.getRight());
             }
@@ -592,7 +586,7 @@ public class TestCreator {
             }
 
             if (propertyType instanceof ReferenceType) {
-                TypeContext newParameters = new TypesUtil(info).generateParameterMap((ReferenceType) propertyType);
+                Map<TypeParameterType, Type> newParameters = info.typesUtil.generateParameterMap((ReferenceType) propertyType);
                 Type subType = ((ReferenceType) propertyType).getTarget();
                 Arg newArg = arg.append("<>").withParameters(newParameters);
                 addMethodCallTest(baseType, newArg, key, subType, seen);
@@ -633,7 +627,7 @@ public class TestCreator {
             }
             seen.add(withParameters);
 
-            TypeContext newParameters = new TypesUtil(info).generateParameterMap(t);
+            Map<TypeParameterType, Type> newParameters = info.typesUtil.generateParameterMap(t);
 
             recurse(t.getTarget(), arg.append("<>").withParameters(newParameters));
 
@@ -641,9 +635,6 @@ public class TestCreator {
         }
 
         private Void recurse(Type type, Arg arg) {
-            if (type instanceof ThisType && arg.getTypeContext().getThisType() == null) {
-                System.out.println();
-            }
             queue.add(new TestQueueElement(type, arg));
             return null;
         }
@@ -697,7 +688,7 @@ public class TestCreator {
         @Override
         public Void visit(TypeParameterType t, Arg arg) {
             TypeWithContext withParameters = new TypeWithContext(t, arg.getTypeContext());
-            if (seen.contains(withParameters) || info.nativeTypes.contains(t)) {
+            if (seen.contains(withParameters)) {
                 return null;
             }
             seen.add(withParameters);
@@ -749,7 +740,7 @@ public class TestCreator {
 
         @Override
         public Void visit(ClassInstanceType t, Arg arg) {
-            InterfaceType instanceType = ((ClassType) t.getClassType()).getInstanceType();
+            Type instanceType = info.typesUtil.createClassInstanceType(((ClassType) t.getClassType()));
             // tests.add(new FilterTest(t, instanceType, arg.path, arg.typeContext, Check.alwaysTrue())); // Not needed, the TypeCreator will make sure the actual InstanceType is found.
 
             recurse(instanceType, arg);
@@ -836,15 +827,17 @@ public class TestCreator {
                 return null;
             }
 
-            recurse(t.getInstanceType(), arg.append("new()"));
+            recurse(info.typesUtil.createClassInstanceType(t), arg.append("new()"));
 
-            assert !t.getSignatures().isEmpty();
+            Pair<InterfaceType, Map<TypeParameterType, Type>> pair = info.typesUtil.classToInterface(t);
+            arg = arg.withTypeContext(arg.getTypeContext().append(pair.getRight()));
 
-            for (Signature signature : t.getSignatures()) {
-                for (int i = 0; i < signature.getParameters().size(); i++) {
-                    Signature.Parameter parameter = signature.getParameters().get(i);
-                    visitor.recurse(parameter.getType(), arg.append("[arg" + i + "]").withTopLevelFunctions());
-                }
+            List<Signature> signatures = pair.getLeft().getDeclaredConstructSignatures();
+
+            assert !signatures.isEmpty();
+
+            for (Signature signature : signatures) {
+                visitSignature(signature, arg);
             }
 
             for (Type baseType : t.getBaseTypes()) {
@@ -907,11 +900,7 @@ public class TestCreator {
             }
 
             for (Signature signature : Util.concat(t.getDeclaredCallSignatures(), t.getDeclaredConstructSignatures())) {
-                for (int i = 0; i < signature.getParameters().size(); i++) {
-                    Signature.Parameter parameter = signature.getParameters().get(i);
-                    visitor.recurse(parameter.getType(), arg.append("[arg" + i + "]").withTopLevelFunctions());
-                }
-                recurse(signature.getResolvedReturnType(), arg.append("()"));
+                visitSignature(signature, arg);
             }
 
             for (Type baseType : t.getBaseTypes()) {
@@ -931,13 +920,27 @@ public class TestCreator {
             return null;
         }
 
+        private void visitSignature(Signature signature, Arg arg) {
+            List<Signature.Parameter> parameters = signature.getParameters();
+            if (signature.isHasRestParameter()) {
+                Type restArgType = TypesUtil.extractRestArgsType(parameters.stream().map(Signature.Parameter::getType).collect(Collectors.toList()));
+                parameters = parameters.subList(0, parameters.size() - 1);
+                visitor.recurse(restArgType, arg.append("[restArg]").withTopLevelFunctions());
+            }
+            for (int i = 0; i < parameters.size(); i++) {
+                Signature.Parameter parameter = parameters.get(i);
+                visitor.recurse(parameter.getType(), arg.append("[arg" + i + "]").withTopLevelFunctions());
+            }
+            recurse(signature.getResolvedReturnType(), arg.append("()"));
+        }
+
         @Override
         public Void visit(ReferenceType t, Arg arg) {
             if (info.nativeTypes.contains(t)) {
                 return null;
             }
 
-            TypeContext newParameters = new TypesUtil(info).generateParameterMap(t);
+            Map<TypeParameterType, Type> newParameters = info.typesUtil.generateParameterMap(t);
 
             recurse(t.getTarget(), arg.append("<>").withParameters(newParameters));
 
@@ -1021,7 +1024,7 @@ public class TestCreator {
 
         @Override
         public Void visit(ClassInstanceType t, Arg arg) {
-            return recurse(((ClassType) t.getClassType()).getInstanceType(), arg);
+            return recurse(info.typesUtil.createClassInstanceType(((ClassType) t.getClassType())), arg);
         }
 
         @Override

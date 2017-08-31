@@ -5,7 +5,7 @@ import dk.webbies.tajscheck.Main;
 import dk.webbies.tajscheck.OutputParser;
 import dk.webbies.tajscheck.RunSmall;
 import dk.webbies.tajscheck.benchmark.Benchmark;
-import dk.webbies.tajscheck.benchmark.CheckOptions;
+import dk.webbies.tajscheck.benchmark.options.CheckOptions;
 import dk.webbies.tajscheck.paser.AST.BinaryExpression;
 import dk.webbies.tajscheck.paser.AST.BlockStatement;
 import dk.webbies.tajscheck.paser.AST.NodeTransverse;
@@ -27,9 +27,84 @@ import java.util.stream.Collectors;
  */
 public class AutomaticExperiments {
     private static final int THREADS = 1;
+    private static int SMALL_DRIVER_RUNS_LIMIT = 100;
+
+    private static final Pair<String, Experiment.ExperimentSingleRunner> runSmall = new Pair<>("runSmall", (bench) -> {
+        bench = bench.withOptions(bench.options.getBuilder().setCheckDepthUseValue(bench.options.checkDepthUseValue).setMaxIterationsToRun(1000));
+        List<OutputParser.RunResult> results = RunSmall.runSmallDrivers(bench, RunSmall.runDriver(bench), SMALL_DRIVER_RUNS_LIMIT, Integer.MAX_VALUE);
+
+        List<OutputParser.TypeError> paths = OutputParser.combine(results).typeErrors.stream().collect(Collectors.toList());
+
+        int warnings = CountUniques.uniqueWarnings(paths, bench);
+
+        return Integer.toString(warnings);
+    });
 
     private static final Pair<String, Experiment.ExperimentSingleRunner> type = new Pair<>("type", (bench) -> bench.run_method.toString());
 
+    private static final Pair<List<String>, Experiment.ExperimentMultiRunner> smallCoverage = new Pair<>(Arrays.asList("small-coverage(stmt)", "small-coverage(func)", "small-coverage(branches)"), (bench) -> {
+        bench = bench.withOptions(bench.options.getBuilder().setCheckDepthUseValue(bench.options.checkDepthUseValue).setMaxIterationsToRun(1000));
+        List<CoverageResult> results = RunSmall.runSmallDrivers(bench, RunSmall.runCoverage(bench), SMALL_DRIVER_RUNS_LIMIT, Integer.MAX_VALUE);
+
+        CoverageResult result = CoverageResult.combine(results);
+        if (result != null) {
+            return Arrays.asList(Util.toPercentage(result.statementCoverage()), Util.toPercentage(result.functionCoverage()), Util.toPercentage(result.branchCoverage()));
+        } else {
+            return Arrays.asList(null, null, null);
+        }
+    });
+
+    private static final Pair<List<String>, Experiment.ExperimentMultiRunner> onlyFoundWhenConstructingClasses = new Pair<>(Arrays.asList("onlyClasses"), (Benchmark bench) -> {
+        bench = bench.withOptions(options -> options.setConstructClassInstances(true).setConstructClassTypes(true));
+
+        Main.generateFullDriver(bench);
+
+        MultiMap<String, OutputParser.TypeError> mismatchCount = new ArrayListMultiMap<>();
+        for (int i = 0; i < 10; i++) {
+            OutputParser.RunResult subResult = OutputParser.parseDriverResult(Main.runBenchmark(bench));
+            for (OutputParser.TypeError typeError : subResult.typeErrors) {
+                mismatchCount.put(typeError.getPath(), typeError);
+            }
+        }
+
+        bench = bench.withOptions(options -> options.setConstructClassInstances(false).setConstructClassTypes(false));
+        Main.generateFullDriver(bench);
+
+        for (Map.Entry<String, Collection<OutputParser.TypeError>> entry : new HashMap<>(mismatchCount.asMap()).entrySet()) {
+            if (entry.getValue().size() < 5) {
+                mismatchCount.remove(entry.getKey());
+            }
+        }
+
+
+        for (int i = 0; i < 10; i++) {
+            if (mismatchCount.isEmpty()) {
+                break;
+            }
+            OutputParser.RunResult subResult = OutputParser.parseDriverResult(Main.runBenchmark(bench));
+            for (OutputParser.TypeError typeError : subResult.typeErrors) {
+                mismatchCount.remove(typeError.getPath());
+            }
+        }
+
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append(bench.getJSName()).append("\n");
+
+        for (Collection<OutputParser.TypeError> errors : mismatchCount.asMap().values()) {
+            OutputParser.TypeError error = errors.iterator().next();
+            stringBuilder.append(error.toString()).append("\n");
+        }
+
+        stringBuilder.append("\n\n");
+
+        synchronized (Util.class) {
+            Util.append("classMismatches.txt", stringBuilder.toString());
+        }
+
+        int uniques = CountUniques.uniqueWarnings(mismatchCount.asMap().values().stream().map(ArrayList::new).reduce(new ArrayList<>(), Util::reduceList), bench);
+
+        return Arrays.asList(Integer.toString(uniques));
+    });
 
     private static final Pair<List<String>, Experiment.ExperimentMultiRunner> hasInstanceOf = new Pair<>(Arrays.asList("hasInstanceOf", "instanceOfCount"), (Benchmark bench) -> {
         BlockStatement stmt = AstBuilder.stmtFromString(Util.readFile(bench.jsFile));
@@ -43,7 +118,7 @@ public class AutomaticExperiments {
             @Override
             public Void visit(BinaryExpression expression) {
                 if (expression.getOperator() == Operator.INSTANCEOF) {
-                    String right = AstToStringVisitor.toString(expression.getRhs());
+                    String right = AstToStringVisitor.toString(expression.getRhs(), true);
                     if (blacklist.stream().anyMatch(right::contains)) {
                         return null;
                     }
@@ -213,6 +288,7 @@ public class AutomaticExperiments {
             if (uniquePaths == null) {
                 return Arrays.asList(null, null, null, null, null, null, null);
             }
+            bench = bench.withOptions(options -> options.setCompactOutput(false));
 
             Map<String, CoverageResult> out = new HashMap<>();
 

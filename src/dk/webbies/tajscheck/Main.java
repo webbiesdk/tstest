@@ -6,7 +6,6 @@ import dk.webbies.tajscheck.buildprogram.DriverProgramBuilder;
 import dk.webbies.tajscheck.paser.AST.Statement;
 import dk.webbies.tajscheck.paser.AstToStringVisitor;
 import dk.webbies.tajscheck.testcreator.test.Test;
-import dk.webbies.tajscheck.testcreator.test.LoadModuleTest;
 import dk.webbies.tajscheck.testcreator.TestCreator;
 import dk.webbies.tajscheck.util.MinimizeArray;
 import dk.webbies.tajscheck.util.Pair;
@@ -23,9 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -52,6 +49,9 @@ public class Main {
     }
 
     public static String createRecordedProgram(Benchmark bench, ExecutionRecording recording) throws Exception {
+        if (true) {
+            throw new RuntimeException("Test this thing before using");
+        }
         String programString = generateFullDriver(bench, recording).getRight();
 
         Util.writeFile(getFolderPath(bench) + "recorded.js", programString);
@@ -70,23 +70,26 @@ public class Main {
 
         List<Test> tests = new TestCreator(info).createTests();
 
+        return new Pair<>(info, generateFullDriver(info, tests, recording));
+    }
+
+    public static String generateFullDriver(BenchmarkInfo info, List<Test> tests, ExecutionRecording recording) throws IOException {
         Statement program = new DriverProgramBuilder(tests, info).buildDriver(recording);
 
-        return new Pair<>(info, AstToStringVisitor.toString(program));
+        return AstToStringVisitor.toString(program, info.options.compactOutput);
     }
 
     public static String generateSmallestDriver(Benchmark bench, Function<String, Collection<Integer>> test) throws IOException {
-        int THREADS = 1;
+        int THREADS = 2;
         BenchmarkInfo info = BenchmarkInfo.create(bench);
 
         List<Test> tests = new TestCreator(info).createTests();
-        Collections.shuffle(tests);
 
         Test[] testsArray = tests.toArray(new Test[]{});
         int prevSize = -1;
 
         String filename = getFolderPath(bench) + TEST_FILE_NAME;
-        Util.writeFile(filename, AstToStringVisitor.toString(new DriverProgramBuilder(Arrays.asList(testsArray), info).buildDriver(null)));
+        Util.writeFile(filename, AstToStringVisitor.toString(new DriverProgramBuilder(Arrays.asList(testsArray), info).buildDriver(null), info.options.compactOutput));
 
         Collection<Integer> firstResult = test.apply(filename);
         if (firstResult == null) {
@@ -102,12 +105,12 @@ public class Main {
             testsArray = MinimizeArray.minimizeArrayQuick(THREADS, (testsToTest) -> {
                 try {
                     String fileName = getFolderPath(bench) + counter.incrementAndGet() + TEST_FILE_NAME;
-                    Util.writeFile(fileName, AstToStringVisitor.toString(new DriverProgramBuilder(Arrays.asList(testsToTest), info).buildDriver(null)));
+                    Util.writeFile(fileName, AstToStringVisitor.toString(new DriverProgramBuilder(Arrays.asList(testsToTest), info).buildDriver(null), info.options.compactOutput));
 
                     Collection<Integer> testsRun = test.apply(fileName);
                     Util.deleteFile(fileName);
                     if (testsRun != null) {
-                        Util.writeFile(getFolderPath(bench) + TEST_FILE_NAME + ".smallest", AstToStringVisitor.toString(new DriverProgramBuilder(Arrays.asList(testsToTest), info).buildDriver(null)));
+                        Util.writeFile(getFolderPath(bench) + TEST_FILE_NAME + ".smallest", AstToStringVisitor.toString(new DriverProgramBuilder(Arrays.asList(testsToTest), info).buildDriver(null), info.options.compactOutput));
                         return testsRun.stream().map(index -> testsToTest[index]).collect(Collectors.toList()).toArray(new Test[]{});
                     } else {
                         return null;
@@ -120,9 +123,9 @@ public class Main {
 
         Statement program = new DriverProgramBuilder(Arrays.asList(testsArray), info).buildDriver(null);
 
-        Util.writeFile(filename, AstToStringVisitor.toString(program));
+        Util.writeFile(filename, AstToStringVisitor.toString(program, info.options.compactOutput));
 
-        return AstToStringVisitor.toString(program);
+        return AstToStringVisitor.toString(program, info.options.compactOutput);
     }
 
 
@@ -175,6 +178,7 @@ public class Main {
     }
 
     public static Map<String, CoverageResult> genCoverage(Benchmark bench, String testFileName, boolean writeDriver) throws IOException {
+        bench = bench.withOptions(options -> options.setCompactOutput(false));
         if (writeDriver) {
             try {
                 writeFullDriver(bench.withOptions(options -> options.setCheckDepthReport(options.checkDepthUseValue)));

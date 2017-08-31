@@ -4,15 +4,14 @@ import dk.au.cs.casa.typescript.SpecReader;
 import dk.au.cs.casa.typescript.types.*;
 import dk.webbies.tajscheck.TypeWithContext;
 import dk.webbies.tajscheck.benchmark.BenchmarkInfo;
-import dk.webbies.tajscheck.benchmark.FreeGenericsFinder;
-import dk.webbies.tajscheck.benchmark.TypeParameterIndexer;
 import dk.webbies.tajscheck.parsespec.ParseDeclaration;
+import dk.webbies.tajscheck.typeutil.typeContext.OptimizingTypeContext;
 import dk.webbies.tajscheck.typeutil.typeContext.TypeContext;
-import dk.webbies.tajscheck.util.ArrayListMultiMap;
 import dk.webbies.tajscheck.util.Pair;
 import dk.webbies.tajscheck.util.Util;
 
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -25,32 +24,67 @@ public class TypesUtil {
 
     public TypesUtil(BenchmarkInfo info) {
         this.info = info;
+        this.classToInterfaceCache = info.getAttribute(OptimizingTypeContext.class, "classToInterfaceCache", HashMap::new);
+        this.classInstanceCache = info.getAttribute(OptimizingTypeContext.class, "classInstanceCache", HashMap::new);
     }
 
-    public static InterfaceType classToInterface(ClassType t, FreeGenericsFinder freeGenericsFinder) {
+    private final Map<ClassType, Pair<InterfaceType, Map<TypeParameterType, Type>>> classToInterfaceCache;
+    public Pair<InterfaceType, Map<TypeParameterType, Type>> classToInterface(ClassType t) {
+        if (classToInterfaceCache.containsKey(t)) {
+            return classToInterfaceCache.get(t);
+        }
         InterfaceType interfaceType = SpecReader.makeEmptySyntheticInterfaceType();
+        info.typeNames.put(interfaceType, info.typeNames.get(t));
+        Map<TypeParameterType, Type> extraParams = new HashMap<>();
+
 
         for (Signature signature : t.getSignatures()) {
             Signature constructor = createConstructorSignature(t, signature);
             interfaceType.getDeclaredConstructSignatures().add(constructor);
         }
         if (t.getSignatures().isEmpty()) {
-            Signature constructor = new Signature();
-            constructor.setHasRestParameter(false);
-            constructor.setIsolatedSignatureType(null);
-            constructor.setMinArgumentCount(0);
-            constructor.setParameters(Collections.emptyList());
-            constructor.setTarget(constructor);
-            constructor.setTypeParameters(Collections.emptyList());
-            constructor.setUnionSignatures(Collections.emptyList());
-            constructor.setResolvedReturnType(t.getInstanceType());
-            interfaceType.getDeclaredConstructSignatures().add(constructor);
+            Type baseType = t;
+            while (true) { // to allow for finding signatures high up in the class hierarchy.
+                if (baseType instanceof ReferenceType) {
+                    extraParams.putAll(generateParameterMap((ReferenceType) baseType));
+                    baseType = ((ReferenceType) baseType).getTarget();
+                }
+                List<Signature> signatures;
+                List<Type> baseTypes;
+                if (baseType instanceof ClassType) {
+                    ClassType classBase = (ClassType) baseType;
+                    signatures = classBase.getSignatures();
+                    baseTypes = classBase.getBaseTypes();
+                } else {
+                    assert baseType instanceof InterfaceType;
+                    InterfaceType inter = (InterfaceType) baseType;
+                    signatures = inter.getDeclaredConstructSignatures();
+                    baseTypes = inter.getBaseTypes();
+                }
+                if (!signatures.isEmpty()) {
+                    interfaceType.setDeclaredConstructSignatures(signatures.stream().map(sig -> createConstructorSignature(t, sig)).collect(Collectors.toList()));
+                    break;
+                }
+                baseTypes = baseTypes.stream().filter(base -> base instanceof ClassType || (base instanceof ReferenceType && ((ReferenceType) base).getTarget() instanceof ClassType)).collect(Collectors.toList());
+                if (baseTypes.isEmpty()) {
+                    interfaceType.getDeclaredConstructSignatures().add(createConstructorSignature(t, emptySignature()));
+                    break;
+                } else {
+                    assert baseTypes.size() == 1;
+                    baseType = baseTypes.get(0);
+                }
+            }
         }
 
         interfaceType.setBaseTypes(
                 t.getBaseTypes().stream().map(base -> {
                     if (base instanceof ClassType) {
-                        return classToInterface((ClassType) base, freeGenericsFinder);
+                        Pair<InterfaceType, Map<TypeParameterType, Type>> pair = classToInterface((ClassType) base);
+                        if (pair.getRight().isEmpty()) {
+                            return pair.getLeft();
+                        } else {
+                            throw new RuntimeException();
+                        }
                     } else {
                         return base;
                     }
@@ -67,11 +101,43 @@ public class TypesUtil {
 
         interfaceType.setTypeParameters(t.getTypeParameters());
 
-        if (freeGenericsFinder.hasThisTypes(t)) {
-            freeGenericsFinder.addHasThisTypes(interfaceType);
+        if (info.freeGenericsFinder.hasThisTypes(t)) {
+            info.freeGenericsFinder.addHasThisTypes(interfaceType);
         }
 
-        return interfaceType;
+        Pair<InterfaceType, Map<TypeParameterType, Type>> result = new Pair<>(interfaceType, extraParams);
+        classToInterfaceCache.put(t, result);
+
+        return result;
+    }
+
+    private final Map<ClassType, InterfaceType> classInstanceCache;
+    public InterfaceType createClassInstanceType(ClassType type) {
+        if (classInstanceCache.containsKey(type)) {
+            return classInstanceCache.get(type);
+        }
+        InterfaceType instanceType = SpecReader.makeEmptySyntheticInterfaceType();
+        info.typeNames.put(instanceType, info.typeNames.get(type) + ".[instance]");
+        classInstanceCache.put(type, instanceType);
+        instanceType.setDeclaredNumberIndexType(type.getDeclaredNumberIndexType());
+        instanceType.setDeclaredStringIndexType(type.getDeclaredStringIndexType());
+        instanceType.setDeclaredProperties(type.getInstanceProperties());
+        instanceType.setTypeParameters(type.getTypeParameters());
+
+        instanceType.setBaseTypes(type.getBaseTypes().stream().map(baseType -> {
+            if (baseType instanceof ClassType) {
+                return this.createClassInstanceType(((ClassType) baseType));
+            } else if (baseType instanceof ReferenceType && ((ReferenceType) baseType).getTarget() instanceof ClassType) {
+                ReferenceType result = new ReferenceType();
+                result.setTypeArguments(((ReferenceType) baseType).getTypeArguments());
+                result.setTarget(this.createClassInstanceType(((ClassType) ((ReferenceType) baseType).getTarget())));
+                return result;
+            } else {
+                return baseType;
+            }
+        }).collect(Collectors.toList()));
+
+        return instanceType;
     }
 
     public static InterfaceType signaturesToInterface(List<Signature> signatures, Map<Type, String> typeNames) {
@@ -95,7 +161,7 @@ public class TypesUtil {
         return result;
     }
 
-    private static Signature emptySignature() {
+    public static Signature emptySignature() {
         Signature signature = new Signature();
         signature.setHasRestParameter(false);
         signature.setIsolatedSignatureType(null);
@@ -108,7 +174,7 @@ public class TypesUtil {
         return signature;
     }
 
-    public static Signature createConstructorSignature(ClassType t, Signature signature) {
+    public Signature createConstructorSignature(ClassType t, Signature signature) {
         Signature constructor = new Signature();
         constructor.setHasRestParameter(signature.isHasRestParameter());
         constructor.setIsolatedSignatureType(signature.getIsolatedSignatureType());
@@ -117,11 +183,11 @@ public class TypesUtil {
         constructor.setTarget(signature.getTarget());
         constructor.setTypeParameters(signature.getTypeParameters());
         constructor.setUnionSignatures(signature.getUnionSignatures());
-        constructor.setResolvedReturnType(t.getInstanceType());
+        constructor.setResolvedReturnType(this.createClassInstanceType(t));
         return constructor;
     }
 
-    public TypeContext generateParameterMap(ReferenceType ref) {
+    public Map<TypeParameterType, Type> generateParameterMap(ReferenceType ref) {
         List<Type> arguments = ref.getTypeArguments();
         Map<TypeParameterType, Type> parameterMap = new HashMap<>();
 
@@ -132,7 +198,7 @@ public class TypesUtil {
         for (int i = 0; i < arguments.size(); i++) {
             parameterMap.put(parameters.get(i), arguments.get(i));
         }
-        return TypeContext.create(info).append(parameterMap);
+        return parameterMap;
     }
 
     public static List<Type> getTypeParameters(Type target) {
@@ -146,6 +212,8 @@ public class TypesUtil {
             return ((ClassType) ((ClassInstanceType) target).getClassType()).getTypeParameters();
         } else if (target instanceof TupleType) {
             return ((TupleType) target).getElementTypes();
+        } else if (target instanceof ReferenceType) {
+            throw new RuntimeException();
         } else {
             throw new RuntimeException(target.getClass().getName());
         }
@@ -155,16 +223,16 @@ public class TypesUtil {
         return typeContext.append(generateParameterMap(type));
     }
 
-    public static Set<Type> collectAllTypes(Collection<Type> types) {
-        CollectAllTypesVisitor visitor = new CollectAllTypesVisitor();
+    public static Set<Type> collectAllTypes(Collection<Type> types, BenchmarkInfo info) {
+        CollectAllTypesVisitor visitor = new CollectAllTypesVisitor(info);
         for (Type type : types) {
             visitor.accept(type);
         }
         return visitor.getSeen();
     }
 
-    public static Set<Type> collectAllTypes(Type type) {
-        return collectAllTypes(Collections.singletonList(type));
+    public static Set<Type> collectAllTypes(Type type, BenchmarkInfo info) {
+        return collectAllTypes(Collections.singletonList(type), info);
     }
 
     public static Set<Type> collectNativeTypes(SpecReader spec, SpecReader emptySpec) {
@@ -217,9 +285,6 @@ public class TypesUtil {
         }
         if (nativeType instanceof UnionType) {
             return ((UnionType) nativeType).getElements().size() == ((UnionType) type).getElements().size();
-        }
-        if (nativeType instanceof IntersectionType) {
-            return ((IntersectionType) nativeType).getElements().size() == ((IntersectionType) type).getElements().size();
         }
         if (nativeType instanceof TupleType) {
             return ((TupleType) nativeType).getElementTypes().size() == ((TupleType) type).getElementTypes().size();
@@ -373,7 +438,7 @@ public class TypesUtil {
         return signatures.stream().map(SignatureComparisonContainer::new).distinct().map(SignatureComparisonContainer::getSignature).collect(Collectors.toList());
     }
 
-    public static Type getNativeBase(Type type, Set<Type> nativeTypes, Map<Type, String> typeNames) {
+    public Type getNativeBase(Type type, Set<Type> nativeTypes, Map<Type, String> typeNames) {
         Predicate<Type> isNativeType = t -> {
             if (t instanceof InterfaceType && TypesUtil.isEmptyInterface((InterfaceType) t)) {
                 return false;
@@ -397,17 +462,17 @@ public class TypesUtil {
     }
 
 
-    public static Set<Type> getAllBaseTypes(Type type) {
+    public Set<Type> getAllBaseTypes(Type type) {
         return getAllBaseTypes(type, new HashSet<>());
     }
 
-    public static Set<Type> getAllBaseTypes(Type type, Set<Type> acc) {
+    public Set<Type> getAllBaseTypes(Type type, Set<Type> acc) {
         return getAllBaseTypes(type, acc, (subType) -> true);
     }
 
-    public static Type normalize(Type type) {
+    public Type normalize(Type type) {
         if (type instanceof ClassInstanceType) {
-            return normalize(((ClassType) ((ClassInstanceType) type).getClassType()).getInstanceType());
+            return normalize(this.createClassInstanceType(((ClassType) ((ClassInstanceType) type).getClassType())));
         }
         if (type instanceof GenericType) {
             return normalize(((GenericType) type).toInterface());
@@ -418,7 +483,7 @@ public class TypesUtil {
         return type;
     }
 
-    private static Set<Type> getAllBaseTypes(Type type, Set<Type> acc, Predicate<Type> shouldContinue) {
+    private Set<Type> getAllBaseTypes(Type type, Set<Type> acc, Predicate<Type> shouldContinue) {
         if (acc.contains(type)) {
             return acc;
         }
@@ -434,7 +499,7 @@ public class TypesUtil {
             }
         }
         if (type instanceof ClassInstanceType) {
-            type = ((ClassType) ((ClassInstanceType) type).getClassType()).getInstanceType();
+            type = this.createClassInstanceType(((ClassType) ((ClassInstanceType) type).getClassType()));
         }
         if (type instanceof InterfaceType) {
             if (shouldContinue.test(type)) {
@@ -472,7 +537,7 @@ public class TypesUtil {
                     getAllStringIndexerTypes(type, context, acc)
             );
         } else if (t instanceof ClassInstanceType) {
-            InterfaceType instanceType = ((ClassType) ((ClassInstanceType) t).getClassType()).getInstanceType();
+            Type instanceType = this.createClassInstanceType(((ClassType) ((ClassInstanceType) t).getClassType()));
             getAllStringIndexerTypes(instanceType, context, acc);
         } else if (t instanceof ClassType) {
             if (((ClassType) t).getDeclaredStringIndexType() != null) {
@@ -509,7 +574,7 @@ public class TypesUtil {
                     getAllNumberIndexerTypes(type, context, acc)
             );
         } else if (t instanceof ClassInstanceType) {
-            InterfaceType instanceType = ((ClassType) ((ClassInstanceType) t).getClassType()).getInstanceType();
+            Type instanceType = this.createClassInstanceType(((ClassType) ((ClassInstanceType) t).getClassType()));
             getAllNumberIndexerTypes(instanceType, context, acc);
         } else if (t instanceof ClassType) {
             if (((ClassType) t).getDeclaredStringIndexType() != null) {
@@ -544,7 +609,7 @@ public class TypesUtil {
                     getAllPropertyDeclarations(type, context, acc)
             );
         } else if (t instanceof ClassInstanceType) {
-            InterfaceType instanceType = ((ClassType) ((ClassInstanceType) t).getClassType()).getInstanceType();
+            Type instanceType = this.createClassInstanceType(((ClassType) ((ClassInstanceType) t).getClassType()));
             getAllPropertyDeclarations(instanceType, context, acc);
         } else if (t instanceof ClassType) {
             acc.add(new Pair<>(context, ((ClassType) t).getStaticProperties()));
@@ -627,14 +692,18 @@ public class TypesUtil {
 
     private static class CollectAllTypesVisitor extends RecursiveTypeVisitor<Void> {
 
+        private CollectAllTypesVisitor(BenchmarkInfo info) {
+            super(info);
+        }
+
         Set<Type> getSeen() {
             return seen;
         }
     }
 
-    public Pair<InterfaceType, TypeContext> constructSyntheticInterfaceWithBaseTypes(InterfaceType inter, Map<Type, String> typeNames, FreeGenericsFinder freeGenericsFinder) {
+    public Pair<InterfaceType, Map<TypeParameterType, Type>> constructSyntheticInterfaceWithBaseTypes(InterfaceType inter) {
         if (inter.getBaseTypes().isEmpty()) {
-            return new Pair<>(inter, TypeContext.create(info));
+            return new Pair<>(inter, Collections.emptyMap());
         }
 //        assert inter.getTypeParameters().isEmpty(); // This should only happen when constructed from a generic/reference type, and in that case we have handled the TypeParameters.
         Map<TypeParameterType, Type> newParameters = new HashMap<>();
@@ -645,23 +714,25 @@ public class TypesUtil {
         result.setDeclaredNumberIndexType(inter.getDeclaredNumberIndexType());
         result.setDeclaredStringIndexType(inter.getDeclaredStringIndexType());
 
-        typeNames.put(result, typeNames.get(inter));
+        info.typeNames.put(result, info.typeNames.get(inter));
         inter.getBaseTypes().forEach(subType -> {
             if (subType instanceof ReferenceType) {
-                newParameters.putAll(generateParameterMap((ReferenceType) subType).getMap());
+                newParameters.putAll(generateParameterMap((ReferenceType) subType));
                 subType = ((ReferenceType) subType).getTarget();
             }
             if (subType instanceof ClassType) {
-                subType = TypesUtil.classToInterface((ClassType) subType, freeGenericsFinder);
+                Pair<InterfaceType, Map<TypeParameterType, Type>> pair = info.typesUtil.classToInterface((ClassType) subType);
+                newParameters.putAll(pair.getRight());
+                subType = pair.getLeft();
             }
             if (subType instanceof GenericType) {
                 subType = ((GenericType) subType).toInterface();
             }
             if (subType instanceof ClassInstanceType) {
-                subType = ((ClassType) ((ClassInstanceType) subType).getClassType()).getInstanceType();
+                subType = this.createClassInstanceType(((ClassType) ((ClassInstanceType) subType).getClassType()));
             }
-            Pair<InterfaceType, TypeContext> pair = constructSyntheticInterfaceWithBaseTypes((InterfaceType) subType, typeNames, freeGenericsFinder);
-            newParameters.putAll(pair.getRight().getMap());
+            Pair<InterfaceType, Map<TypeParameterType, Type>> pair = constructSyntheticInterfaceWithBaseTypes((InterfaceType) subType);
+            newParameters.putAll(pair.getRight());
             InterfaceType type = pair.getLeft();
             result.getDeclaredCallSignatures().addAll((type.getDeclaredCallSignatures()));
             result.getDeclaredConstructSignatures().addAll(type.getDeclaredConstructSignatures());
@@ -679,6 +750,116 @@ public class TypesUtil {
                 result.getDeclaredProperties().put(entry.getKey(), entry.getValue());
             }
         });
-        return new Pair<>(result, TypeContext.create(info).append(newParameters));
+        return new Pair<>(result, newParameters);
+    }
+
+    public void forAllSubTypes(Type type, TypeContext typeContext, Consumer<TypeWithContext> callback) {
+        forAllSubTypes(type, typeContext, new HashSet<>(), callback);
+    }
+
+    private void forAllSubTypes(Type type, TypeContext typeContext, Set<TypeWithContext> seen, Consumer<TypeWithContext> callback) {
+        TypeWithContext seenKey = new TypeWithContext(type, typeContext);
+        if (seen.contains(seenKey)) {
+            return;
+        }
+        seen.add(seenKey);
+
+        callback.accept(seenKey);
+
+        if (typeContext.getThisType() != null) {
+            forAllSubTypes(type, typeContext.withThisType(null), seen, callback);
+        }
+        if (typeContext.getThisType() == null) {
+            if (info.freeGenericsFinder.hasThisTypes(type) && !(type instanceof ClassType)) {
+                forAllSubTypes(type, typeContext.withThisType(type), seen, callback);
+            }
+        }
+
+        {
+            TypeContext newContext = typeContext.optimizeTypeParameters(type);
+            if (!newContext.equals(typeContext)) {
+                forAllSubTypes(type, newContext, seen, callback);
+            }
+        }
+
+        if (type instanceof InterfaceType) {
+            List<Type> baseTypes = ((InterfaceType) type).getBaseTypes();
+            baseTypes.forEach(baseType -> forAllSubTypes(baseType, typeContext, seen, callback));
+        } else if (type instanceof IntersectionType) {
+            List<Type> baseTypes = ((IntersectionType) type).getElements();
+            baseTypes.forEach(baseType -> forAllSubTypes(baseType, typeContext, seen, callback));
+        } else if (type instanceof ReferenceType) {
+            forAllSubTypes(((ReferenceType) type).getTarget(), this.generateParameterMap((ReferenceType) type, typeContext), seen, callback);
+        } else if (type instanceof GenericType) {
+            forAllSubTypes(((GenericType) type).toInterface(), typeContext, seen, callback);
+        } else if (type instanceof ClassType) {
+            forAllSubTypes(type, typeContext.withThisType(this.createClassInstanceType(((ClassType) type))), seen, callback);
+        } else if (type instanceof ClassInstanceType) {
+            ClassInstanceType instanceType = (ClassInstanceType) type;
+
+            ClassType classType = (ClassType) instanceType.getClassType();
+            if (instanceType != classType.getInstance()) {
+                if (true) {
+                    throw new RuntimeException("Is this ever called?");
+                }
+                forAllSubTypes(classType.getInstance(), typeContext, seen, callback);
+            }
+
+            {
+                Map<TypeParameterType, Type> map = new HashMap<>();
+                for (int i = 0; i < classType.getTypeParameters().size(); i++) {
+                    map.put((TypeParameterType) classType.getTypeParameters().get(i), classType.getTypeArguments().get(i));
+                }
+                map.keySet().removeAll(typeContext.getMap().keySet());
+                TypeContext newContext = typeContext.append(map);
+                if (!newContext.optimizeTypeParameters(instanceType).equals(typeContext)) {
+                    forAllSubTypes(instanceType, newContext, seen, callback);
+                }
+            }
+
+            forAllSubTypes(this.createClassInstanceType(classType), typeContext, seen, callback);
+            if (info.freeGenericsFinder.hasThisTypes(instanceType.getClassType())) {
+                forAllSubTypes(this.createClassInstanceType(classType), typeContext.withThisType(instanceType), seen, callback);
+            }
+
+            for (Type baseClass : classType.getBaseTypes()) {
+                TypeContext subTypeContext = typeContext;
+                if (baseClass instanceof ReferenceType) {
+                    subTypeContext = this.generateParameterMap((ReferenceType) baseClass, typeContext);
+                    baseClass = ((ReferenceType) baseClass).getTarget();
+                } else if (baseClass instanceof ClassInstanceType) {
+                    baseClass = ((ClassInstanceType) baseClass).getClassType();
+                }
+                if (baseClass instanceof ClassType) {
+                    baseClass = ((ClassType) baseClass).getInstance();
+                } else if (!(baseClass instanceof InterfaceType || baseClass instanceof GenericType || baseClass instanceof ClassInstanceType)) {
+                    throw new RuntimeException("Not sure about: " + baseClass.getClass().getSimpleName());
+                }
+                forAllSubTypes(baseClass, subTypeContext, seen, callback);
+            }
+
+        } else if (type instanceof ThisType) {
+            Type thisType = typeContext.getThisType();
+            forAllSubTypes(thisType != null ? thisType : ((ThisType) type).getConstraint(), typeContext, seen, callback);
+        } else if (type instanceof TypeParameterType) {
+            if (typeContext.get((TypeParameterType) type) != null) {
+                TypeWithContext lookup = typeContext.get((TypeParameterType) type);
+                forAllSubTypes(lookup.getType(), lookup.getTypeContext(), seen, callback);
+            } else {
+                // Do nothing
+            }
+        } else if (type instanceof SimpleType || type instanceof NumberLiteral || type instanceof StringLiteral || type instanceof BooleanLiteral || type instanceof UnionType || type instanceof TupleType || type instanceof IndexedAccessType) {
+            // Do nothing.
+        } else {
+            throw new RuntimeException(type.getClass().getName());
+        }
+    }
+
+    public static Type extractRestArgsType(List<Type> orgParameterTypes) {
+        Type restArgArr = orgParameterTypes.get(orgParameterTypes.size() - 1);
+        assert restArgArr instanceof ReferenceType;
+        assert ((ReferenceType) restArgArr).getTypeArguments().size() == 1;
+
+        return ((ReferenceType) restArgArr).getTypeArguments().iterator().next();
     }
 }
